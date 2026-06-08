@@ -12,7 +12,7 @@ from apps.accounts.serializers import (
     UserUpdateSerializer,
 )
 from apps.core.permissions import IsAdmin
-from apps.core.responses import success_response
+from apps.core.responses import error_response, success_response
 
 User = get_user_model()
 
@@ -36,7 +36,7 @@ class MeView(generics.RetrieveUpdateAPIView):
     serializer_class = UserSerializer
 
     def get_object(self):
-        return self.request.user
+        return User.objects.select_related("department").get(pk=self.request.user.pk)
 
     def retrieve(self, request, *args, **kwargs):
         serializer = self.get_serializer(self.get_object())
@@ -72,10 +72,15 @@ class RefreshView(TokenRefreshView):
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all()
+    queryset = Department.objects.prefetch_related("members").all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated]
     search_fields = ["name"]
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -109,7 +114,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return success_response(data=serializer.data, message="Department updated.")
 
     def destroy(self, request, *args, **kwargs):
-        self.get_object().delete()
+        department = self.get_object()
+        if department.members.exists():
+            return error_response(
+                "Cannot delete department with assigned users. Reassign users first.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        department.delete()
         return success_response(message="Department deleted.", status=status.HTTP_200_OK)
 
 

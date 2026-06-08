@@ -124,10 +124,24 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
 }
 
-CORS_ALLOWED_ORIGINS = config(
-    "CORS_ALLOWED_ORIGINS",
-    default="http://192.168.11.113:3173",
-).split(",")
+if DEBUG:
+    # Allow login from any LAN IP (localhost, 192.168.x.x, Docker 172.x, etc.)
+    CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=True, cast=bool)
+else:
+    CORS_ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in config(
+            "CORS_ALLOWED_ORIGINS",
+            default=(
+                "http://localhost:5173,"
+                "http://127.0.0.1:5173,"
+                "http://192.168.11.209:5173,"
+                "http://172.17.16.1:5173,"
+                "http://192.168.11.113:3173"
+            ),
+        ).split(",")
+        if origin.strip()
+    ]
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Task Manager API",

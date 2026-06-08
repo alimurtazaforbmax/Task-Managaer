@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
 import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Paginated, Project, Task } from "../types";
 
 export default function TasksPage() {
+  const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const { data: users } = useUsers();
@@ -61,12 +63,14 @@ export default function TasksPage() {
           <h1 className="text-2xl font-bold">Tasks</h1>
           <p className="text-slate-500 mt-1">Development work items</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
-        >
-          New task
-        </button>
+        {permissions.can_create_tasks && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+          >
+            New task
+          </button>
+        )}
       </div>
 
       {showForm && (

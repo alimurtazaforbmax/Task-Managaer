@@ -1,8 +1,9 @@
 import axios from "axios";
 import type { ApiResponse } from "../types";
+import { API_BASE_URL } from "./config";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: API_BASE_URL,
   headers: { "Content-Type": "application/json" },
 });
 
@@ -24,7 +25,7 @@ api.interceptors.response.use(
       if (refresh) {
         try {
           const { data } = await axios.post<ApiResponse<{ access: string }>>(
-            "/api/auth/refresh/",
+            `${API_BASE_URL}/auth/refresh/`,
             { refresh }
           );
           if (data.success && data.data.access) {

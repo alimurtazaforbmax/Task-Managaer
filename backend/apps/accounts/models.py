@@ -13,6 +13,10 @@ class UserRole(models.TextChoices):
 class Department(models.Model):
     name = models.CharField(max_length=128, unique=True)
     description = models.TextField(blank=True)
+    can_create_tasks = models.BooleanField(default=False)
+    can_create_bugs = models.BooleanField(default=False)
+    can_edit_tasks = models.BooleanField(default=False)
+    can_edit_bugs = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
 import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug, Paginated, Project } from "../types";
 
 export default function BugsPage() {
+  const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const { data: users } = useUsers();
@@ -62,12 +64,14 @@ export default function BugsPage() {
           <h1 className="text-2xl font-bold">Bugs</h1>
           <p className="text-slate-500 mt-1">QA issues and defect tracking</p>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
-        >
-          Report bug
-        </button>
+        {permissions.can_create_bugs && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+          >
+            Report bug
+          </button>
+        )}
       </div>
 
       {showForm && (

@@ -12,6 +12,7 @@ from apps.bugs.serializers import (
     BugStatusSerializer,
     BugUpdateSerializer,
 )
+from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment, CommentType
 from apps.core.permissions import can_delete_attachment, is_owner_or_admin
@@ -67,6 +68,14 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context["request"] = self.request
         return context
+
+    def create(self, request, *args, **kwargs):
+        if not user_has_permission(request.user, "can_create_bugs"):
+            return error_response(
+                "Your department does not have permission to create bugs.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         bug = serializer.save(reporter=self.request.user)

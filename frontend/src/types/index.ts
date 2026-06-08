@@ -20,14 +20,37 @@ export interface User {
   role: string;
   department: number | null;
   department_name?: string;
+  permissions?: UserPermissions;
   job_title?: string;
   is_active?: boolean;
+}
+
+export interface DepartmentPermissions {
+  can_create_tasks: boolean;
+  can_create_bugs: boolean;
+  can_edit_tasks: boolean;
+  can_edit_bugs: boolean;
 }
 
 export interface Department {
   id: number;
   name: string;
   description: string;
+  can_create_tasks?: boolean;
+  can_create_bugs?: boolean;
+  can_edit_tasks?: boolean;
+  can_edit_bugs?: boolean;
+  member_count?: number;
+}
+
+export interface UserPermissions extends DepartmentPermissions {}
+
+export interface ProjectMember {
+  id: number;
+  user: number;
+  user_detail?: User;
+  role: string;
+  joined_at?: string;
 }
 
 export interface Project {
@@ -36,9 +59,12 @@ export interface Project {
   code: string;
   description: string;
   status: string;
+  start_date?: string | null;
+  end_date?: string | null;
   member_count?: number;
   task_count?: number;
   bug_count?: number;
+  members?: ProjectMember[];
 }
 
 export interface Task {

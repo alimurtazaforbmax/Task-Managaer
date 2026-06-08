@@ -6,7 +6,14 @@ from apps.accounts.models import Department, User
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ("name", "created_at")
+    list_display = (
+        "name",
+        "can_create_tasks",
+        "can_create_bugs",
+        "can_edit_tasks",
+        "can_edit_bugs",
+        "created_at",
+    )
     search_fields = ("name",)
 
 

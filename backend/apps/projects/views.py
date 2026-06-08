@@ -1,23 +1,23 @@
 from django.conf import settings
-from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.mixins import StandardResponseMixin, user_project_ids
-from apps.core.permissions import IsAdmin, IsAdminOrProjectManager
+from apps.core.permissions import IsAdmin
 from apps.core.responses import error_response, success_response
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.projects.models import Project, ProjectDocument, ProjectMember
 from apps.projects.serializers import (
+    ProjectDetailSerializer,
     ProjectDocumentSerializer,
     ProjectMemberSerializer,
     ProjectSerializer,
+    ProjectWriteSerializer,
 )
 
 
 class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
-    serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
     search_fields = ["name", "code", "description"]
     filterset_fields = ["status"]
@@ -26,24 +26,47 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     delete_message = "Project archived."
 
     def get_queryset(self):
-        qs = Project.objects.prefetch_related("members").all()
+        qs = Project.objects.prefetch_related("members__user").all()
         if self.request.user.role != "admin":
             qs = qs.filter(id__in=user_project_ids(self.request.user))
         return qs
 
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return ProjectWriteSerializer
+        if self.action == "retrieve":
+            return ProjectDetailSerializer
+        return ProjectSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = self.request
+        return context
+
     def get_permissions(self):
-        if self.action == "create":
-            return [IsAdminOrProjectManager()]
-        if self.action == "destroy":
+        if self.action in ("create", "update", "partial_update", "destroy"):
             return [IsAdmin()]
         return [IsAuthenticated()]
 
-    def perform_create(self, serializer):
-        project = serializer.save(created_by=self.request.user)
-        ProjectMember.objects.get_or_create(
-            project=project,
-            user=self.request.user,
-            defaults={"role": "pm"},
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.save()
+        return success_response(
+            data=ProjectDetailSerializer(project, context={"request": request}).data,
+            message=self.create_message,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.save()
+        return success_response(
+            data=ProjectDetailSerializer(project, context={"request": request}).data,
+            message=self.update_message,
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -60,6 +83,11 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 project.members.select_related("user"), many=True
             )
             return success_response(data=serializer.data)
+        if request.user.role != "admin":
+            return error_response(
+                "Only admin can add members.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = ProjectMemberSerializer(data={**request.data, "project": project.id})
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -112,6 +140,11 @@ class ProjectMemberViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     create_message = "Member added."
     update_message = "Member updated."
     delete_message = "Member removed."
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         qs = super().get_queryset()

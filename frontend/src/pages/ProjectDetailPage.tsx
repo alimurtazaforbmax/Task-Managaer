@@ -1,12 +1,27 @@
-import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import StatusBadge from "../components/StatusBadge";
+import { useAuth } from "../context/AuthContext";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug, Project, Task } from "../types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const { data: users } = useUsers();
+  const qc = useQueryClient();
+  const isAdmin = user?.role === "admin";
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    code: "",
+    description: "",
+    status: "active",
+    member_ids: [] as number[],
+  });
 
   const { data: project } = useQuery({
     queryKey: ["project", id],
@@ -15,6 +30,18 @@ export default function ProjectDetailPage() {
       return unwrap(res);
     },
   });
+
+  useEffect(() => {
+    if (project && showEdit) {
+      setEditForm({
+        name: project.name,
+        code: project.code,
+        description: project.description,
+        status: project.status,
+        member_ids: project.members?.map((m) => m.user) ?? [],
+      });
+    }
+  }, [project, showEdit]);
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks", { project: id }],
@@ -34,6 +61,24 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const updateProject = useMutation({
+    mutationFn: async () => {
+      const res = await api.patch<ApiResponse<Project>>(`/projects/${id}/`, {
+        name: editForm.name,
+        code: editForm.code.toLowerCase().replace(/\s+/g, "-"),
+        description: editForm.description,
+        status: editForm.status,
+        member_ids: editForm.member_ids,
+      });
+      return unwrap(res);
+    },
+    onSuccess: () => {
+      setShowEdit(false);
+      qc.invalidateQueries({ queryKey: ["project", id] });
+      qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+
   if (!project) return <p className="text-slate-400">Loading...</p>;
 
   return (
@@ -41,12 +86,84 @@ export default function ProjectDetailPage() {
       <Link to="/projects" className="text-sm text-brand-600 hover:underline">
         ← Projects
       </Link>
-      <div className="flex items-center gap-3 mt-2">
-        <h1 className="text-2xl font-bold">{project.name}</h1>
-        <StatusBadge status={project.status} />
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{project.name}</h1>
+          <StatusBadge status={project.status} />
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setShowEdit(!showEdit)}
+            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
+          >
+            Edit project
+          </button>
+        )}
       </div>
       <p className="text-slate-500">{project.code}</p>
       <p className="mt-4 text-slate-700">{project.description}</p>
+
+      {project.members && project.members.length > 0 && (
+        <section className="mt-6 bg-white border rounded-xl p-5">
+          <h2 className="font-semibold">Members</h2>
+          <ul className="mt-3 space-y-2">
+            {project.members.map((m) => (
+              <li key={m.id} className="flex items-center justify-between text-sm">
+                <span>
+                  {m.user_detail?.first_name || m.user_detail?.username || `User #${m.user}`}
+                </span>
+                <span className="text-slate-500 capitalize">{m.role.replace(/_/g, " ")}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {showEdit && isAdmin && (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            updateProject.mutate();
+          }}
+          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+        >
+          <h2 className="font-semibold">Edit project</h2>
+          <input
+            required
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.name}
+            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+          />
+          <input
+            required
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.code}
+            onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+          />
+          <textarea
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.description}
+            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+          />
+          <select
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.status}
+            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+          >
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="archived">Archived</option>
+          </select>
+          <ProjectMemberSelect
+            users={users ?? []}
+            selected={editForm.member_ids}
+            onChange={(member_ids) => setEditForm({ ...editForm, member_ids })}
+          />
+          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+            Save changes
+          </button>
+        </form>
+      )}
 
       <section className="mt-10">
         <h2 className="font-semibold text-lg">Tasks</h2>

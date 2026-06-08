@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate } from "react-router-dom";
 import api, { unwrap } from "../api/client";
 import { useAuth } from "../context/AuthContext";
-import type { ApiResponse, Paginated, User } from "../types";
+import type { ApiResponse, Department, Paginated, User } from "../types";
 import { USER_ROLES } from "../types";
 
 export default function UsersPage() {
@@ -22,6 +22,17 @@ export default function UsersPage() {
   });
 
   if (user?.role !== "admin") return <Navigate to="/" replace />;
+
+  const { data: departments } = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<Paginated<Department> | Department[]>>(
+        "/auth/departments/?page_size=100"
+      );
+      const d = unwrap(res);
+      return Array.isArray(d) ? d : d.results;
+    },
+  });
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["users"],
@@ -178,6 +189,18 @@ export default function UsersPage() {
               </option>
             ))}
           </select>
+          <select
+            className="w-full border rounded-lg px-3 py-2"
+            value={form.department}
+            onChange={(e) => setForm({ ...form, department: e.target.value })}
+          >
+            <option value="">No department</option>
+            {departments?.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
           <div className="flex gap-2">
             <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
               {editing ? "Save changes" : "Create user"}
@@ -203,6 +226,7 @@ export default function UsersPage() {
                 <th className="text-left p-3">User</th>
                 <th className="text-left p-3">Email</th>
                 <th className="text-left p-3">Role</th>
+                <th className="text-left p-3">Department</th>
                 <th className="text-left p-3">Status</th>
                 <th className="p-3"></th>
               </tr>
@@ -213,6 +237,7 @@ export default function UsersPage() {
                   <td className="p-3 font-medium">{u.username}</td>
                   <td className="p-3 text-slate-600">{u.email}</td>
                   <td className="p-3 capitalize">{u.role.replace(/_/g, " ")}</td>
+                  <td className="p-3 text-slate-600">{u.department_name || "—"}</td>
                   <td className="p-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded ${

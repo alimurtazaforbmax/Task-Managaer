@@ -2,17 +2,31 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from apps.accounts.models import Department, User
+from apps.accounts.permissions_util import get_department_permissions
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
+    member_count = serializers.IntegerField(source="members.count", read_only=True)
+
     class Meta:
         model = Department
-        fields = ("id", "name", "description", "created_at")
-        read_only_fields = ("id", "created_at")
+        fields = (
+            "id",
+            "name",
+            "description",
+            "can_create_tasks",
+            "can_create_bugs",
+            "can_edit_tasks",
+            "can_edit_bugs",
+            "member_count",
+            "created_at",
+        )
+        read_only_fields = ("id", "created_at", "member_count")
 
 
 class UserSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True)
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -25,11 +39,15 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "department",
             "department_name",
+            "permissions",
             "job_title",
             "is_active",
             "date_joined",
         )
-        read_only_fields = ("id", "date_joined", "department_name")
+        read_only_fields = ("id", "date_joined", "department_name", "permissions")
+
+    def get_permissions(self, obj) -> dict[str, bool]:
+        return get_department_permissions(obj)
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

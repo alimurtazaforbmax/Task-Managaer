@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
+from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment
 from apps.core.permissions import can_delete_attachment, is_owner_or_admin
@@ -58,6 +59,14 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context["request"] = self.request
         return context
+
+    def create(self, request, *args, **kwargs):
+        if not user_has_permission(request.user, "can_create_tasks"):
+            return error_response(
+                "Your department does not have permission to create tasks.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         task = serializer.save(reporter=self.request.user)

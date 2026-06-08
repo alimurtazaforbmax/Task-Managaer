@@ -2,18 +2,29 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import StatusBadge from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Paginated, Project } from "../types";
+
+const emptyForm = {
+  name: "",
+  code: "",
+  description: "",
+  status: "active",
+  member_ids: [] as number[],
+};
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const { data: users } = useUsers();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", code: "", description: "" });
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
 
-  const canCreate = user?.role === "admin" || user?.role === "project_manager";
+  const isAdmin = user?.role === "admin";
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -29,16 +40,18 @@ export default function ProjectsPage() {
   const createProject = useMutation({
     mutationFn: async () => {
       const res = await api.post<ApiResponse<Project>>("/projects/", {
-        ...form,
+        name: form.name,
         code: form.code.toLowerCase().replace(/\s+/g, "-"),
-        status: "active",
+        description: form.description,
+        status: form.status,
+        member_ids: form.member_ids,
       });
       return unwrap(res);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       setShowForm(false);
-      setForm({ name: "", code: "", description: "" });
+      setForm(emptyForm);
       setError("");
     },
     onError: () => setError("Could not create project. Code may already exist."),
@@ -51,7 +64,7 @@ export default function ProjectsPage() {
           <h1 className="text-2xl font-bold">Projects</h1>
           <p className="text-slate-500 mt-1">All projects you have access to</p>
         </div>
-        {canCreate && (
+        {isAdmin && (
           <button
             onClick={() => setShowForm(!showForm)}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
@@ -61,7 +74,7 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {showForm && (
+      {showForm && isAdmin && (
         <form
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
@@ -69,6 +82,7 @@ export default function ProjectsPage() {
           }}
           className="mt-6 bg-white border rounded-xl p-5 space-y-3"
         >
+          <h2 className="font-semibold">Create project</h2>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <input
             required
@@ -89,6 +103,20 @@ export default function ProjectsPage() {
             className="w-full border rounded-lg px-3 py-2"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <select
+            className="w-full border rounded-lg px-3 py-2"
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+          >
+            <option value="active">Active</option>
+            <option value="on_hold">On Hold</option>
+            <option value="archived">Archived</option>
+          </select>
+          <ProjectMemberSelect
+            users={users ?? []}
+            selected={form.member_ids}
+            onChange={(member_ids) => setForm({ ...form, member_ids })}
           />
           <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
             Create project

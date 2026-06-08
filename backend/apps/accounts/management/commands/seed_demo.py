@@ -13,11 +13,25 @@ class Command(BaseCommand):
     help = "Seed demo users, departments, project, tasks, and bugs"
 
     def handle(self, *args, **options):
-        backend, _ = Department.objects.get_or_create(
-            name="Backend", defaults={"description": "Backend engineering"}
+        backend, _ = Department.objects.update_or_create(
+            name="Backend",
+            defaults={
+                "description": "Backend engineering",
+                "can_create_tasks": False,
+                "can_create_bugs": False,
+                "can_edit_tasks": True,
+                "can_edit_bugs": True,
+            },
         )
-        qa_dept, _ = Department.objects.get_or_create(
-            name="QA", defaults={"description": "Quality assurance"}
+        qa_dept, _ = Department.objects.update_or_create(
+            name="QA",
+            defaults={
+                "description": "Quality assurance",
+                "can_create_tasks": True,
+                "can_create_bugs": True,
+                "can_edit_tasks": False,
+                "can_edit_bugs": True,
+            },
         )
 
         admin, created = User.objects.get_or_create(

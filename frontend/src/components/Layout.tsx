@@ -21,7 +21,15 @@ export default function Layout() {
           <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role}</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {[...baseNav, ...(user?.role === "admin" ? [{ to: "/users", label: "Users" }] : [])].map((item) => (
+          {[
+            ...baseNav,
+            ...(user?.role === "admin"
+              ? [
+                  { to: "/departments", label: "Departments" },
+                  { to: "/users", label: "Users" },
+                ]
+              : []),
+          ].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

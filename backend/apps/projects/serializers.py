@@ -1,7 +1,8 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
-from apps.projects.models import Project, ProjectDocument, ProjectMember
+from apps.projects.models import Project, ProjectDocument, ProjectMember, ProjectMemberRole
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -35,7 +36,89 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "created_by", "created_at", "updated_at", "member_count", "task_count", "bug_count")
+        read_only_fields = (
+            "id",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "member_count",
+            "task_count",
+            "bug_count",
+        )
+
+
+class ProjectDetailSerializer(ProjectSerializer):
+    members = ProjectMemberSerializer(many=True, read_only=True)
+
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + ("members",)
+
+
+class ProjectWriteSerializer(serializers.ModelSerializer):
+    member_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        write_only=True,
+        allow_empty=True,
+    )
+
+    class Meta:
+        model = Project
+        fields = (
+            "name",
+            "code",
+            "description",
+            "status",
+            "start_date",
+            "end_date",
+            "member_ids",
+        )
+
+    def _sync_members(self, project: Project, member_ids: list[int], creator) -> None:
+        member_ids = list(dict.fromkeys(member_ids))
+        if creator and creator.id not in member_ids:
+            member_ids.append(creator.id)
+
+        desired_ids = set(member_ids)
+        current_ids = set(project.members.values_list("user_id", flat=True))
+
+        project.members.filter(user_id__in=current_ids - desired_ids).delete()
+
+        for user_id in member_ids:
+            defaults = {"role": ProjectMemberRole.DEVELOPER}
+            if creator and user_id == creator.id:
+                defaults = {"role": ProjectMemberRole.PM}
+            ProjectMember.objects.get_or_create(
+                project=project,
+                user_id=user_id,
+                defaults=defaults,
+            )
+
+    @transaction.atomic
+    def create(self, validated_data):
+        member_ids = validated_data.pop("member_ids", [])
+        request = self.context.get("request")
+        creator = request.user if request else None
+        project = Project.objects.create(
+            created_by=creator,
+            **validated_data,
+        )
+        self._sync_members(project, member_ids, creator)
+        return project
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        member_ids = validated_data.pop("member_ids", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if member_ids is not None:
+            request = self.context.get("request")
+            creator = instance.created_by or (request.user if request else None)
+            self._sync_members(instance, member_ids, creator)
+
+        return instance
 
 
 class ProjectDocumentSerializer(serializers.ModelSerializer):
