@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const nav = [
+const baseNav = [
   { to: "/", label: "Dashboard" },
   { to: "/projects", label: "Projects" },
   { to: "/tasks", label: "Tasks" },
@@ -21,7 +21,7 @@ export default function Layout() {
           <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role}</p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {nav.map((item) => (
+          {[...baseNav, ...(user?.role === "admin" ? [{ to: "/users", label: "Users" }] : [])].map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

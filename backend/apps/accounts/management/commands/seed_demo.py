@@ -89,18 +89,19 @@ class Command(BaseCommand):
                 project=project, user=user, defaults={"role": role}
             )
 
-        Task.objects.get_or_create(
+        task, _ = Task.objects.get_or_create(
             project=project,
             title="Implement user dashboard",
             defaults={
                 "description": "Build dashboard widgets for assigned work",
                 "status": "in_progress",
                 "priority": "high",
-                "assignee": dev,
                 "reporter": pm,
             },
         )
-        Bug.objects.get_or_create(
+        task.assignees.add(dev)
+
+        bug, _ = Bug.objects.get_or_create(
             project=project,
             title="Login button misaligned on mobile",
             defaults={
@@ -109,10 +110,10 @@ class Command(BaseCommand):
                 "environment": "iOS Safari",
                 "status": "open",
                 "severity": "medium",
-                "assignee": dev,
                 "reporter": qa,
             },
         )
+        bug.assignees.add(dev)
 
         self.stdout.write(self.style.SUCCESS("Demo data seeded."))
         self.stdout.write("  admin / admin123")

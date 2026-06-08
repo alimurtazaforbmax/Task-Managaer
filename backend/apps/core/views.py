@@ -61,10 +61,10 @@ class DashboardView(generics.GenericAPIView):
         today = timezone.now().date()
 
         my_tasks = Task.objects.filter(
-            project_id__in=project_ids, assignee=user
+            project_id__in=project_ids, assignees=user
         ).exclude(status="done").count()
         my_bugs = Bug.objects.filter(
-            project_id__in=project_ids, assignee=user
+            project_id__in=project_ids, assignees=user
         ).exclude(status="closed").count()
         open_bugs = Bug.objects.filter(
             project_id__in=project_ids, status="open"

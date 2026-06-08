@@ -9,6 +9,7 @@ from apps.accounts.serializers import (
     RegisterSerializer,
     UserCreateSerializer,
     UserSerializer,
+    UserUpdateSerializer,
 )
 from apps.core.permissions import IsAdmin
 from apps.core.responses import success_response
@@ -121,6 +122,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return UserCreateSerializer
+        if self.action in ("update", "partial_update"):
+            return UserUpdateSerializer
         return UserSerializer
 
     def get_permissions(self):
@@ -157,8 +160,8 @@ class UserViewSet(viewsets.ModelViewSet):
             instance, data=request.data, partial=kwargs.get("partial", False)
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return success_response(data=UserSerializer(instance).data, message="User updated.")
+        user = serializer.save()
+        return success_response(data=UserSerializer(user).data, message="User updated.")
 
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()

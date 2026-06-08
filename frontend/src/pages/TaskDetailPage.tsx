@@ -1,8 +1,10 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Task } from "../types";
 
 const TASK_STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"];
@@ -10,8 +12,19 @@ const TASK_STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "b
 export default function TaskDetailPage() {
   const { id } = useParams();
   const qc = useQueryClient();
+  const { data: users } = useUsers();
   const [comment, setComment] = useState("");
   const [minutes, setMinutes] = useState("");
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    priority: "medium",
+    task_type: "feature",
+    assignees: [] as number[],
+    due_date: "",
+    tags: "",
+  });
 
   const { data: task } = useQuery({
     queryKey: ["task", id],
@@ -21,10 +34,37 @@ export default function TaskDetailPage() {
     },
   });
 
+  useEffect(() => {
+    if (task && showEdit) {
+      setEditForm({
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        task_type: task.task_type,
+        assignees: task.assignees ?? [],
+        due_date: task.due_date ?? "",
+        tags: task.tags ?? "",
+      });
+    }
+  }, [task, showEdit]);
+
   const statusMutation = useMutation({
-    mutationFn: (status: string) =>
-      api.post(`/tasks/${id}/status/`, { status }),
+    mutationFn: (status: string) => api.post(`/tasks/${id}/status/`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["task", id] }),
+  });
+
+  const updateTask = useMutation({
+    mutationFn: async () => {
+      const res = await api.patch<ApiResponse<Task>>(`/tasks/${id}/`, {
+        ...editForm,
+        due_date: editForm.due_date || null,
+      });
+      return unwrap(res);
+    },
+    onSuccess: () => {
+      setShowEdit(false);
+      qc.invalidateQueries({ queryKey: ["task", id] });
+    },
   });
 
   const addComment = useMutation({
@@ -50,11 +90,85 @@ export default function TaskDetailPage() {
   return (
     <div className="max-w-3xl">
       <Link to="/tasks" className="text-sm text-brand-600 hover:underline">← Tasks</Link>
-      <div className="flex items-center gap-3 mt-2">
-        <h1 className="text-2xl font-bold">{task.title}</h1>
-        <StatusBadge status={task.status} />
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{task.title}</h1>
+          <StatusBadge status={task.status} />
+        </div>
+        {task.is_owner && (
+          <button
+            onClick={() => setShowEdit(!showEdit)}
+            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
+          >
+            Edit task
+          </button>
+        )}
       </div>
+      <p className="text-sm text-slate-500 mt-1">
+        Owner: {task.reporter_detail?.username ?? "—"}
+        {task.assignees_detail?.length ? (
+          <> · Assigned: {task.assignees_detail.map((u) => u.username).join(", ")}</>
+        ) : null}
+      </p>
       <p className="text-slate-600 mt-4">{task.description}</p>
+
+      {showEdit && (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            updateTask.mutate();
+          }}
+          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+        >
+          <h2 className="font-semibold">Edit task</h2>
+          <input
+            required
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.title}
+            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+          />
+          <textarea
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.description}
+            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              className="border rounded-lg px-3 py-2"
+              value={editForm.priority}
+              onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+            >
+              {["low", "medium", "high", "urgent"].map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <select
+              className="border rounded-lg px-3 py-2"
+              value={editForm.task_type}
+              onChange={(e) => setEditForm({ ...editForm, task_type: e.target.value })}
+            >
+              {["feature", "chore", "spike"].map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <MultiUserSelect
+            label="Assignees"
+            users={users ?? []}
+            selected={editForm.assignees}
+            onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
+          />
+          <input
+            type="date"
+            className="border rounded-lg px-3 py-2"
+            value={editForm.due_date}
+            onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
+          />
+          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+            Save changes
+          </button>
+        </form>
+      )}
 
       <div className="mt-6 flex gap-2 flex-wrap">
         {TASK_STATUSES.map((s) => (
@@ -77,7 +191,6 @@ export default function TaskDetailPage() {
             <li key={c.id} className="bg-slate-50 rounded-lg p-3 text-sm">
               <p className="font-medium text-slate-700">
                 {c.author_detail?.username ?? "User"}
-                <span className="text-slate-400 font-normal ml-2">{c.comment_type}</span>
               </p>
               <p className="mt-1">{c.text}</p>
             </li>

@@ -20,6 +20,8 @@ export interface User {
   role: string;
   department: number | null;
   department_name?: string;
+  job_title?: string;
+  is_active?: boolean;
 }
 
 export interface Department {
@@ -48,9 +50,12 @@ export interface Task {
   status: string;
   priority: string;
   task_type: string;
-  assignee: number | null;
+  assignees: number[];
+  assignees_detail?: User[];
   assignee_department: number | null;
-  assignee_detail?: User;
+  reporter?: number;
+  reporter_detail?: User;
+  is_owner?: boolean;
   due_date: string | null;
   estimated_hours?: string | null;
   tags?: string;
@@ -71,10 +76,12 @@ export interface Bug {
   status: string;
   severity: string;
   priority: string;
-  assignee: number | null;
+  assignees: number[];
+  assignees_detail?: User[];
   assignee_department: number | null;
-  assignee_detail?: User;
+  reporter?: number;
   reporter_detail?: User;
+  is_owner?: boolean;
   due_date: string | null;
   comments?: Comment[];
   attachments?: Attachment[];
@@ -110,3 +117,11 @@ export interface Notification {
   is_read: boolean;
   created_at: string;
 }
+
+export const USER_ROLES = [
+  "admin",
+  "project_manager",
+  "developer",
+  "qa",
+  "viewer",
+] as const;

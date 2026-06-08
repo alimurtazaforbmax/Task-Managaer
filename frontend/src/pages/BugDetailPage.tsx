@@ -1,9 +1,11 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug } from "../types";
 
 const BUG_STATUSES = [
@@ -18,11 +20,23 @@ const BUG_STATUSES = [
 export default function BugDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { data: users } = useUsers();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comment, setComment] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    steps_to_reproduce: "",
+    environment: "",
+    severity: "medium",
+    priority: "medium",
+    assignees: [] as number[],
+    due_date: "",
+  });
 
   const { data: bug } = useQuery({
     queryKey: ["bug", id],
@@ -32,9 +46,38 @@ export default function BugDetailPage() {
     },
   });
 
+  useEffect(() => {
+    if (bug && showEdit) {
+      setEditForm({
+        title: bug.title,
+        description: bug.description,
+        steps_to_reproduce: bug.steps_to_reproduce,
+        environment: bug.environment,
+        severity: bug.severity,
+        priority: bug.priority,
+        assignees: bug.assignees ?? [],
+        due_date: bug.due_date ?? "",
+      });
+    }
+  }, [bug, showEdit]);
+
   const statusMutation = useMutation({
     mutationFn: (status: string) => api.post(`/bugs/${id}/status/`, { status }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bug", id] }),
+  });
+
+  const updateBug = useMutation({
+    mutationFn: async () => {
+      const res = await api.patch<ApiResponse<Bug>>(`/bugs/${id}/`, {
+        ...editForm,
+        due_date: editForm.due_date || null,
+      });
+      return unwrap(res);
+    },
+    onSuccess: () => {
+      setShowEdit(false);
+      qc.invalidateQueries({ queryKey: ["bug", id] });
+    },
   });
 
   const rejectMutation = useMutation({
@@ -66,25 +109,110 @@ export default function BugDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bug", id] }),
   });
 
+  const deleteAttachment = useMutation({
+    mutationFn: (attachmentId: number) =>
+      api.delete(`/bugs/${id}/attachments/${attachmentId}/`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bug", id] }),
+  });
+
   if (!bug) return <p className="text-slate-400">Loading...</p>;
 
   const canReject = user?.role === "developer" || user?.role === "admin";
+  const canDeleteFile = bug.is_owner || user?.role === "admin";
 
   return (
     <div className="max-w-3xl">
       <Link to="/bugs" className="text-sm text-brand-600 hover:underline">← Bugs</Link>
-      <div className="flex items-center gap-3 mt-2">
-        <h1 className="text-2xl font-bold">{bug.title}</h1>
-        <StatusBadge status={bug.status} />
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{bug.title}</h1>
+          <StatusBadge status={bug.status} />
+        </div>
+        {bug.is_owner && (
+          <button
+            onClick={() => setShowEdit(!showEdit)}
+            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
+          >
+            Edit bug
+          </button>
+        )}
       </div>
       <p className="text-sm text-slate-500 mt-1">
-        {bug.severity} severity · reported by {bug.reporter_detail?.username ?? "—"}
+        {bug.severity} severity · Owner: {bug.reporter_detail?.username ?? "—"}
+        {bug.assignees_detail?.length ? (
+          <> · Assigned: {bug.assignees_detail.map((u) => u.username).join(", ")}</>
+        ) : null}
       </p>
       <p className="text-slate-600 mt-4">{bug.description}</p>
       {bug.steps_to_reproduce && (
         <pre className="mt-4 bg-slate-100 rounded-lg p-4 text-sm whitespace-pre-wrap">
           {bug.steps_to_reproduce}
         </pre>
+      )}
+
+      {showEdit && (
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            updateBug.mutate();
+          }}
+          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+        >
+          <h2 className="font-semibold">Edit bug</h2>
+          <input
+            required
+            className="w-full border rounded-lg px-3 py-2"
+            value={editForm.title}
+            onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+          />
+          <textarea
+            className="w-full border rounded-lg px-3 py-2"
+            placeholder="Description"
+            value={editForm.description}
+            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+          />
+          <textarea
+            className="w-full border rounded-lg px-3 py-2"
+            placeholder="Steps to reproduce"
+            value={editForm.steps_to_reproduce}
+            onChange={(e) => setEditForm({ ...editForm, steps_to_reproduce: e.target.value })}
+          />
+          <input
+            className="w-full border rounded-lg px-3 py-2"
+            placeholder="Environment"
+            value={editForm.environment}
+            onChange={(e) => setEditForm({ ...editForm, environment: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              className="border rounded-lg px-3 py-2"
+              value={editForm.severity}
+              onChange={(e) => setEditForm({ ...editForm, severity: e.target.value })}
+            >
+              {["low", "medium", "high", "critical"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <select
+              className="border rounded-lg px-3 py-2"
+              value={editForm.priority}
+              onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+            >
+              {["low", "medium", "high", "urgent"].map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+          <MultiUserSelect
+            label="Assignees"
+            users={users ?? []}
+            selected={editForm.assignees}
+            onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
+          />
+          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+            Save changes
+          </button>
+        </form>
       )}
 
       <div className="mt-6 flex gap-2 flex-wrap">
@@ -154,17 +282,29 @@ export default function BugDetailPage() {
             }}
           />
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="mt-3 space-y-2">
           {bug.attachments?.map((a) => (
-            <a
+            <div
               key={a.id}
-              href={a.file_url}
-              target="_blank"
-              rel="noreferrer"
-              className="block border rounded-lg p-2 text-sm text-brand-600 hover:bg-slate-50"
+              className="flex items-center justify-between border rounded-lg p-2 text-sm"
             >
-              {a.original_name} ({a.attachment_type})
-            </a>
+              <a
+                href={a.file_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-brand-600 hover:underline"
+              >
+                {a.original_name} ({a.attachment_type})
+              </a>
+              {canDeleteFile && (
+                <button
+                  onClick={() => deleteAttachment.mutate(a.id)}
+                  className="text-rose-600 hover:text-rose-800 text-xs px-2 py-1"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </section>

@@ -2,18 +2,22 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Paginated, Project, Task } from "../types";
 
 export default function TasksPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const { data: users } = useUsers();
   const [form, setForm] = useState({
     project: "",
     title: "",
     description: "",
     priority: "medium",
     task_type: "feature",
+    assignees: [] as number[],
   });
 
   const { data: projects } = useQuery({
@@ -46,7 +50,7 @@ export default function TasksPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
       setShowForm(false);
-      setForm({ project: "", title: "", description: "", priority: "medium", task_type: "feature" });
+      setForm({ project: "", title: "", description: "", priority: "medium", task_type: "feature", assignees: [] });
     },
   });
 
@@ -99,6 +103,12 @@ export default function TasksPage() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
+          <MultiUserSelect
+            label="Assign to"
+            users={users ?? []}
+            selected={form.assignees}
+            onChange={(ids) => setForm({ ...form, assignees: ids })}
+          />
           <button
             type="submit"
             className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm"
@@ -120,7 +130,12 @@ export default function TasksPage() {
             >
               <div>
                 <p className="font-medium">{t.title}</p>
-                <p className="text-xs text-slate-500">{t.project_name}</p>
+                <p className="text-xs text-slate-500">
+                  {t.project_name}
+                  {t.assignees_detail?.length
+                    ? ` · ${t.assignees_detail.map((u) => u.username).join(", ")}`
+                    : ""}
+                </p>
               </div>
               <StatusBadge status={t.status} />
             </Link>

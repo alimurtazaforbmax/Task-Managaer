@@ -32,6 +32,37 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "date_joined", "department_name")
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = (
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "department",
+            "job_title",
+            "is_active",
+            "password",
+        )
+
+    def validate_password(self, value):
+        if value:
+            validate_password(value)
+        return value
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        for attr, val in validated_data.items():
+            setattr(instance, attr, val)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
+
+
 class UserCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 

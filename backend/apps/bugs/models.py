@@ -59,10 +59,8 @@ class Bug(models.Model):
         choices=BugPriority.choices,
         default=BugPriority.MEDIUM,
     )
-    assignee = models.ForeignKey(
+    assignees = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
         related_name="assigned_bugs",
     )

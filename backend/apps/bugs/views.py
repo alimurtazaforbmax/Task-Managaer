@@ -10,9 +10,11 @@ from apps.bugs.serializers import (
     BugRejectSerializer,
     BugSerializer,
     BugStatusSerializer,
+    BugUpdateSerializer,
 )
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment, CommentType
+from apps.core.permissions import can_delete_attachment, is_owner_or_admin
 from apps.core.responses import error_response, success_response
 from apps.core.serializers import (
     AttachmentSerializer,
@@ -31,7 +33,7 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         "severity",
         "priority",
         "project",
-        "assignee",
+        "assignees",
         "assignee_department",
     ]
     ordering_fields = ["updated_at", "due_date", "created_at"]
@@ -41,8 +43,8 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Bug.objects.select_related(
-            "project", "assignee", "assignee_department", "reporter", "related_task"
-        )
+            "project", "assignee_department", "reporter", "related_task"
+        ).prefetch_related("assignees")
         if self.request.user.role != "admin":
             qs = qs.filter(project_id__in=user_project_ids(self.request.user))
         if self.action == "retrieve":
@@ -57,7 +59,14 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "list":
             return BugListSerializer
+        if self.action in ("update", "partial_update"):
+            return BugUpdateSerializer
         return BugSerializer
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["request"] = self.request
+        return context
 
     def perform_create(self, serializer):
         bug = serializer.save(reporter=self.request.user)
@@ -67,13 +76,41 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             detail=bug.title,
             bug=bug,
         )
-        if bug.assignee:
+        for assignee in bug.assignees.all():
             notify_user(
-                user=bug.assignee,
+                user=assignee,
                 title="New bug assigned",
                 message=f"You were assigned bug: {bug.title}",
                 link=f"/bugs/{bug.id}",
             )
+
+    def update(self, request, *args, **kwargs):
+        bug = self.get_object()
+        if not is_owner_or_admin(request.user, bug):
+            return error_response(
+                "Only the bug owner can edit details. You may change status only.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        partial = kwargs.pop("partial", False)
+        serializer = self.get_serializer(bug, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return success_response(
+            data=BugSerializer(
+                Bug.objects.prefetch_related("assignees").get(pk=bug.pk),
+                context={"request": request},
+            ).data,
+            message=self.update_message,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        bug = self.get_object()
+        if not is_owner_or_admin(request.user, bug):
+            return error_response(
+                "Only the bug owner can delete this bug.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], url_path="status")
     def change_status(self, request, pk=None):
@@ -201,6 +238,26 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             message="Attachment uploaded.",
             status=status.HTTP_201_CREATED,
         )
+
+    @action(
+        detail=True,
+        methods=["delete"],
+        url_path=r"attachments/(?P<attachment_id>[^/.]+)",
+    )
+    def delete_attachment(self, request, pk=None, attachment_id=None):
+        bug = self.get_object()
+        try:
+            attachment = bug.attachments.get(pk=attachment_id)
+        except Attachment.DoesNotExist:
+            return error_response("Attachment not found.", status=status.HTTP_404_NOT_FOUND)
+        if not can_delete_attachment(request.user, attachment, bug):
+            return error_response(
+                "You do not have permission to delete this file.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        attachment.file.delete(save=False)
+        attachment.delete()
+        return success_response(message="Attachment deleted.")
 
     @action(detail=True, methods=["get", "post"], url_path="time-entries")
     def time_entries(self, request, pk=None):

@@ -9,6 +9,7 @@ import TasksPage from "./pages/TasksPage";
 import TaskDetailPage from "./pages/TaskDetailPage";
 import BugsPage from "./pages/BugsPage";
 import BugDetailPage from "./pages/BugDetailPage";
+import UsersPage from "./pages/UsersPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -41,6 +42,7 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<TaskDetailPage />} />
         <Route path="bugs" element={<BugsPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -11,12 +11,13 @@ from apps.tasks.models import Task
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    assignee_detail = UserSerializer(source="assignee", read_only=True)
+    assignees_detail = UserSerializer(source="assignees", many=True, read_only=True)
     assignee_department_detail = DepartmentSerializer(
         source="assignee_department", read_only=True
     )
     reporter_detail = UserSerializer(source="reporter", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    is_owner = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
     attachments = AttachmentSerializer(many=True, read_only=True)
     time_entries = TimeEntrySerializer(many=True, read_only=True)
@@ -33,12 +34,13 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "task_type",
-            "assignee",
-            "assignee_detail",
+            "assignees",
+            "assignees_detail",
             "assignee_department",
             "assignee_department_detail",
             "reporter",
             "reporter_detail",
+            "is_owner",
             "due_date",
             "estimated_hours",
             "tags",
@@ -54,19 +56,45 @@ class TaskSerializer(serializers.ModelSerializer):
             "reporter",
             "reporter_detail",
             "project_name",
+            "status",
+            "is_owner",
             "comments",
             "attachments",
             "time_entries",
             "activity_logs",
             "created_at",
             "updated_at",
-            "assignee_detail",
+            "assignees_detail",
             "assignee_department_detail",
+        )
+
+    def get_is_owner(self, obj) -> bool:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        if request.user.role == "admin":
+            return True
+        return obj.reporter_id == request.user.id
+
+
+class TaskUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task
+        fields = (
+            "title",
+            "description",
+            "priority",
+            "task_type",
+            "assignees",
+            "assignee_department",
+            "due_date",
+            "estimated_hours",
+            "tags",
         )
 
 
 class TaskListSerializer(serializers.ModelSerializer):
-    assignee_detail = UserSerializer(source="assignee", read_only=True)
+    assignees_detail = UserSerializer(source="assignees", many=True, read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
@@ -79,9 +107,10 @@ class TaskListSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "task_type",
-            "assignee",
-            "assignee_detail",
+            "assignees",
+            "assignees_detail",
             "assignee_department",
+            "reporter",
             "due_date",
             "updated_at",
         )

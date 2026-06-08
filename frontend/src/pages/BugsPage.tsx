@@ -2,12 +2,15 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug, Paginated, Project } from "../types";
 
 export default function BugsPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const { data: users } = useUsers();
   const [form, setForm] = useState({
     project: "",
     title: "",
@@ -16,6 +19,7 @@ export default function BugsPage() {
     environment: "",
     severity: "medium",
     priority: "medium",
+    assignees: [] as number[],
   });
 
   const { data: projects } = useQuery({
@@ -106,6 +110,12 @@ export default function BugsPage() {
             value={form.environment}
             onChange={(e) => setForm({ ...form, environment: e.target.value })}
           />
+          <MultiUserSelect
+            label="Assign to"
+            users={users ?? []}
+            selected={form.assignees}
+            onChange={(ids) => setForm({ ...form, assignees: ids })}
+          />
           <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
             Submit bug
           </button>
@@ -124,7 +134,12 @@ export default function BugsPage() {
             >
               <div>
                 <p className="font-medium">{b.title}</p>
-                <p className="text-xs text-slate-500">{b.project_name}</p>
+                <p className="text-xs text-slate-500">
+                  {b.project_name}
+                  {b.assignees_detail?.length
+                    ? ` · ${b.assignees_detail.map((u) => u.username).join(", ")}`
+                    : ""}
+                </p>
               </div>
               <StatusBadge status={b.status} />
             </Link>

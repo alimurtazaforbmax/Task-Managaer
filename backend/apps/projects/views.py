@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.mixins import StandardResponseMixin, user_project_ids
-from apps.core.permissions import IsAdmin
+from apps.core.permissions import IsAdmin, IsAdminOrProjectManager
 from apps.core.responses import error_response, success_response
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.projects.models import Project, ProjectDocument, ProjectMember
@@ -32,7 +32,9 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         return qs
 
     def get_permissions(self):
-        if self.action in ("create", "destroy"):
+        if self.action == "create":
+            return [IsAdminOrProjectManager()]
+        if self.action == "destroy":
             return [IsAdmin()]
         return [IsAuthenticated()]
 
