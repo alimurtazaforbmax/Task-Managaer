@@ -45,6 +45,10 @@ interface WorkItemHeroProps {
   readonly description?: string;
   readonly projectId?: number;
   readonly projectName?: string;
+  readonly featureId?: number | null;
+  readonly featureTitle?: string | null;
+  readonly sprintId?: number | null;
+  readonly sprintName?: string | null;
   readonly priority?: string;
   readonly severity?: string;
   readonly taskType?: string;
@@ -68,6 +72,10 @@ export default function WorkItemHero({
   description,
   projectId,
   projectName,
+  featureId,
+  featureTitle,
+  sprintId,
+  sprintName,
   priority,
   severity,
   taskType,
@@ -129,6 +137,36 @@ export default function WorkItemHero({
                 </Link>
               ) : (
                 <p className="text-sm font-medium text-slate-800 mt-0.5 truncate">{projectName}</p>
+              )}
+            </div>
+          )}
+          {featureTitle && (
+            <div className="rounded-lg border border-violet-100 bg-violet-50 px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-violet-600">Feature</p>
+              {featureId ? (
+                <Link
+                  to={`/features/${featureId}`}
+                  className="text-sm font-medium text-brand-600 hover:underline truncate block mt-0.5"
+                >
+                  {featureTitle}
+                </Link>
+              ) : (
+                <p className="text-sm font-medium text-slate-800 mt-0.5 truncate">{featureTitle}</p>
+              )}
+            </div>
+          )}
+          {sprintName && (
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-600">Sprint</p>
+              {sprintId ? (
+                <Link
+                  to={`/sprints/${sprintId}`}
+                  className="text-sm font-medium text-brand-600 hover:underline truncate block mt-0.5"
+                >
+                  {sprintName}
+                </Link>
+              ) : (
+                <p className="text-sm font-medium text-slate-800 mt-0.5 truncate">{sprintName}</p>
               )}
             </div>
           )}

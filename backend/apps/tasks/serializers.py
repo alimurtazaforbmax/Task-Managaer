@@ -19,6 +19,8 @@ class TaskSerializer(serializers.ModelSerializer):
     )
     reporter_detail = UserSerializer(source="reporter", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    feature_title = serializers.CharField(source="feature.title", read_only=True)
+    sprint_name = serializers.CharField(source="sprint.name", read_only=True)
     is_owner = serializers.SerializerMethodField()
     can_change_status = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
@@ -32,6 +34,10 @@ class TaskSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "project_name",
+            "feature",
+            "feature_title",
+            "sprint",
+            "sprint_name",
             "title",
             "description",
             "status",
@@ -71,6 +77,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "updated_at",
             "assignees_detail",
             "assignee_department_detail",
+            "feature_title",
+            "sprint_name",
         )
 
     def get_is_owner(self, obj) -> bool:
@@ -96,6 +104,8 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
             "description",
             "priority",
             "task_type",
+            "feature",
+            "sprint",
             "assignees",
             "assignee_department",
             "due_date",
@@ -107,6 +117,8 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
 class TaskListSerializer(serializers.ModelSerializer):
     assignees_detail = UserSerializer(source="assignees", many=True, read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    feature_title = serializers.CharField(source="feature.title", read_only=True)
+    sprint_name = serializers.CharField(source="sprint.name", read_only=True)
 
     class Meta:
         model = Task
@@ -114,6 +126,10 @@ class TaskListSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "project_name",
+            "feature",
+            "feature_title",
+            "sprint",
+            "sprint_name",
             "title",
             "status",
             "priority",

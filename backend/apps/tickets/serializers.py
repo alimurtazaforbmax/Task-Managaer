@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
 from apps.core.mixins import user_is_project_member
 from apps.core.permissions import can_approve_ticket, can_edit_ticket
+from apps.projects.models import ProjectMember
 from apps.tickets.models import Ticket
 
 
@@ -14,6 +15,16 @@ def validate_project_membership(user, project):
             "You must be a member of this project to work with its tickets."
         )
     return project
+
+
+def validate_mentioned_user_in_project(project, mentioned_user):
+    if not mentioned_user:
+        return mentioned_user
+    if not ProjectMember.objects.filter(project=project, user=mentioned_user).exists():
+        raise serializers.ValidationError(
+            {"mentioned_user": "Mentioned user must be a member of the selected project."}
+        )
+    return mentioned_user
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -97,6 +108,15 @@ class TicketSerializer(serializers.ModelSerializer):
             return validate_project_membership(request.user, value)
         return value
 
+    def validate(self, attrs):
+        project = attrs.get("project") or getattr(self.instance, "project", None)
+        mentioned_user = attrs.get(
+            "mentioned_user", getattr(self.instance, "mentioned_user", None)
+        )
+        if project and mentioned_user is not None:
+            validate_mentioned_user_in_project(project, mentioned_user)
+        return attrs
+
 
 class TicketListSerializer(serializers.ModelSerializer):
     raised_by_detail = UserSerializer(source="raised_by", read_only=True)
@@ -146,6 +166,17 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         if request:
             return validate_project_membership(request.user, value)
         return value
+
+    def validate(self, attrs):
+        project = attrs.get("project") or getattr(self.instance, "project", None)
+        mentioned_user = attrs.get(
+            "mentioned_user", getattr(self.instance, "mentioned_user", None)
+        )
+        if "mentioned_user" in attrs and attrs["mentioned_user"] is None:
+            mentioned_user = None
+        if project and mentioned_user is not None:
+            validate_mentioned_user_in_project(project, mentioned_user)
+        return attrs
 
 
 class TicketRejectSerializer(serializers.Serializer):

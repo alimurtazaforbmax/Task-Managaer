@@ -6,7 +6,7 @@ self.addEventListener("push", (event) => {
     data = { message: event.data?.text() ?? "" };
   }
 
-  const title = data.title || "Task Manager";
+  const title = data.title || "BetaFlow";
   const options = {
     body: data.message || "",
     icon: "/notification-icon.svg",

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import BackLink from "../components/BackLink";
@@ -22,7 +22,9 @@ import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
-import type { ApiResponse, Bug, Project, Task } from "../types";
+import FeatureCard from "../components/FeatureCard";
+import SprintCard from "../components/SprintCard";
+import type { ApiResponse, Bug, Feature, Project, Sprint, Task } from "../types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -83,6 +85,28 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const { data: features } = useQuery({
+    queryKey: ["features", { project: id }],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<{ results: Feature[] } | Feature[]>>(
+        `/features/?project=${id}`
+      );
+      const d = unwrap(res);
+      return Array.isArray(d) ? d : d.results;
+    },
+  });
+
+  const { data: sprints } = useQuery({
+    queryKey: ["sprints", { project: id }],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<{ results: Sprint[] } | Sprint[]>>(
+        `/sprints/?project=${id}`
+      );
+      const d = unwrap(res);
+      return Array.isArray(d) ? d : d.results;
+    },
+  });
+
   const updateProject = useMutation({
     mutationFn: async () => {
       const res = await api.patch<ApiResponse<Project>>(`/projects/${id}/`, {
@@ -108,6 +132,8 @@ export default function ProjectDetailPage() {
         project: Number(id),
         status: "backlog",
         due_date: taskForm.due_date || null,
+        feature: taskForm.feature ? Number(taskForm.feature) : null,
+        sprint: taskForm.sprint ? Number(taskForm.sprint) : null,
       });
       const task = unwrap(res);
       if (attachments.length) {
@@ -202,7 +228,17 @@ export default function ProjectDetailPage() {
             {project.description || "No description yet."}
           </p>
 
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <StatChip
+              label="Features"
+              value={project.feature_count ?? features?.length ?? 0}
+              tone="tasks"
+            />
+            <StatChip
+              label="Sprints"
+              value={project.sprint_count ?? sprints?.length ?? 0}
+              tone="tasks"
+            />
             <StatChip label="Tasks" value={project.task_count ?? tasks?.length ?? 0} tone="tasks" />
             <StatChip label="Bugs" value={project.bug_count ?? bugs?.length ?? 0} tone="bugs" />
             <StatChip
@@ -275,6 +311,40 @@ export default function ProjectDetailPage() {
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg text-slate-900">Features</h2>
+          <Link to="/features" className="text-sm text-brand-600 hover:underline font-medium">
+            View all
+          </Link>
+        </div>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {features?.slice(0, 4).map((f) => (
+            <FeatureCard key={f.id} feature={f} />
+          ))}
+          {!features?.length && (
+            <p className="text-sm text-slate-400 col-span-full">No features for this project.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg text-slate-900">Sprints</h2>
+          <Link to="/sprints" className="text-sm text-brand-600 hover:underline font-medium">
+            View all
+          </Link>
+        </div>
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {sprints?.slice(0, 4).map((s) => (
+            <SprintCard key={s.id} sprint={s} />
+          ))}
+          {!sprints?.length && (
+            <p className="text-sm text-slate-400 col-span-full">No sprints for this project.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg text-slate-900">Tasks</h2>
           {permissions.can_create_tasks && (
             <button
@@ -296,6 +366,8 @@ export default function ProjectDetailPage() {
               onChange={setTaskForm}
               onSubmit={(files) => createTask.mutate(files)}
               isSubmitting={createTask.isPending}
+              features={features?.map((f) => ({ id: f.id, title: f.title }))}
+              sprints={sprints?.map((s) => ({ id: s.id, name: s.name }))}
             />
           </div>
         )}

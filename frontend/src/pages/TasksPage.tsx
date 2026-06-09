@@ -5,6 +5,7 @@ import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
+import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
 import { useUsers } from "../hooks/useUsers";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import type { ApiResponse, Paginated, Project, Task } from "../types";
@@ -16,6 +17,9 @@ export default function TasksPage() {
   const [projectId, setProjectId] = useState("");
   const { data: users } = useUsers();
   const [form, setForm] = useState(emptyTaskForm);
+
+  const { data: features } = useProjectFeatures(projectId);
+  const { data: sprints } = useProjectSprints(projectId);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -42,6 +46,8 @@ export default function TasksPage() {
         project: Number(projectId),
         status: "backlog",
         due_date: form.due_date || null,
+        feature: form.feature ? Number(form.feature) : null,
+        sprint: form.sprint ? Number(form.sprint) : null,
       });
       const task = unwrap(res);
       if (attachments.length) {
@@ -63,7 +69,9 @@ export default function TasksPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tasks</h1>
-          <p className="text-slate-500 mt-1">Development work items</p>
+          <p className="text-slate-500 mt-1">
+            Pick a project first, then optionally link a feature and sprint
+          </p>
         </div>
         {permissions.can_create_tasks && (
           <button
@@ -86,7 +94,12 @@ export default function TasksPage() {
             showProjectSelect
             projects={projects}
             projectId={projectId}
-            onProjectChange={setProjectId}
+            onProjectChange={(pid) => {
+              setProjectId(pid);
+              setForm((f) => ({ ...f, feature: "", sprint: "" }));
+            }}
+            features={features?.map((f) => ({ id: f.id, title: f.title }))}
+            sprints={sprints?.map((s) => ({ id: s.id, name: s.name }))}
           />
         </div>
       )}
@@ -101,6 +114,8 @@ export default function TasksPage() {
               title={t.title}
               subtitle={[
                 t.project_name,
+                t.feature_title,
+                t.sprint_name,
                 t.priority,
                 t.due_date ? `due ${t.due_date}` : "",
                 t.assignees_detail?.length

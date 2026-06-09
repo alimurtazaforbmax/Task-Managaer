@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
-import { useUsers } from "../hooks/useUsers";
+import { formatMemberLabel, useProjectMembers } from "../hooks/useProjectMembers";
 import type { ApiResponse, Department, Paginated, Project, Ticket } from "../types";
 
 const REQUEST_TYPES = [
@@ -28,7 +28,9 @@ export default function TicketsPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const { data: users } = useUsers();
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(
+    form.project || undefined
+  );
 
   const { data: projects } = useQuery({
     queryKey: ["projects", "members-only"],
@@ -134,6 +136,28 @@ export default function TicketsPage() {
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
             </label>
+            <label className="block sm:col-span-2">
+              <span className="text-sm font-medium text-slate-700">
+                Project <span className="text-rose-500">*</span>
+              </span>
+              <select
+                required
+                value={form.project}
+                onChange={(e) =>
+                  setForm({ ...form, project: e.target.value, mentioned_user: "" })
+                }
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="" disabled>
+                  Select a project you are a member of
+                </option>
+                {memberProjects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Type</span>
               <select
@@ -155,39 +179,24 @@ export default function TicketsPage() {
             </label>
             <label className="block">
               <span className="text-sm font-medium text-slate-700">
-                Project <span className="text-rose-500">*</span>
-              </span>
-              <select
-                required
-                value={form.project}
-                onChange={(e) => setForm({ ...form, project: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="" disabled>
-                  Select a project you are a member of
-                </option>
-                {memberProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">
                 Mention person (optional)
               </span>
               <select
                 value={form.mentioned_user}
                 onChange={(e) => setForm({ ...form, mentioned_user: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                disabled={!form.project}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
               >
-                <option value="">None</option>
-                {users?.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.first_name || u.last_name
-                      ? `${u.first_name} ${u.last_name}`.trim()
-                      : u.username}
+                <option value="">
+                  {!form.project
+                    ? "Select a project first"
+                    : membersLoading
+                      ? "Loading members..."
+                      : "None"}
+                </option>
+                {projectMembers?.map((m) => (
+                  <option key={m.user} value={m.user}>
+                    {formatMemberLabel(m)}
                   </option>
                 ))}
               </select>

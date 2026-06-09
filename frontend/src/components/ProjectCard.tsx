@@ -37,7 +37,9 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           {project.description || "No description yet."}
         </p>
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <StatChip label="Features" value={project.feature_count ?? 0} tone="tasks" />
+          <StatChip label="Sprints" value={project.sprint_count ?? 0} tone="tasks" />
           <StatChip label="Tasks" value={project.task_count ?? 0} tone="tasks" />
           <StatChip label="Bugs" value={project.bug_count ?? 0} tone="bugs" />
           <StatChip label="Members" value={project.member_count ?? 0} tone="members" />

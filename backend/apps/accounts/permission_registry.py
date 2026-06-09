@@ -91,6 +91,42 @@ PERMISSION_REGISTRY: list[dict[str, str]] = [
         "category": "Administration",
         "description": "View the system audit trail.",
     },
+    {
+        "codename": "can_create_features",
+        "name": "Create features",
+        "category": "Planning",
+        "description": "Create product features within projects.",
+    },
+    {
+        "codename": "can_edit_features",
+        "name": "Edit features",
+        "category": "Planning",
+        "description": "Edit any feature (not only own).",
+    },
+    {
+        "codename": "can_delete_features",
+        "name": "Delete features",
+        "category": "Planning",
+        "description": "Delete features created by others.",
+    },
+    {
+        "codename": "can_create_sprints",
+        "name": "Create sprints",
+        "category": "Planning",
+        "description": "Create sprints within projects.",
+    },
+    {
+        "codename": "can_edit_sprints",
+        "name": "Edit sprints",
+        "category": "Planning",
+        "description": "Edit any sprint (not only own).",
+    },
+    {
+        "codename": "can_delete_sprints",
+        "name": "Delete sprints",
+        "category": "Planning",
+        "description": "Delete sprints created by others.",
+    },
 ]
 
 SYSTEM_ROLES: list[dict] = [
@@ -117,6 +153,12 @@ SYSTEM_ROLES: list[dict] = [
             "can_edit_tickets",
             "can_approve_tickets",
             "can_view_all_projects",
+            "can_create_features",
+            "can_edit_features",
+            "can_delete_features",
+            "can_create_sprints",
+            "can_edit_sprints",
+            "can_delete_sprints",
         ],
     },
     {
@@ -133,6 +175,10 @@ SYSTEM_ROLES: list[dict] = [
             "can_create_tickets",
             "can_edit_tickets",
             "can_approve_tickets",
+            "can_create_features",
+            "can_edit_features",
+            "can_create_sprints",
+            "can_edit_sprints",
         ],
     },
     {
@@ -166,6 +212,10 @@ DEPARTMENT_OVERLAY_CODENAMES = (
     "can_create_bugs",
     "can_edit_tasks",
     "can_edit_bugs",
+    "can_create_features",
+    "can_create_sprints",
+    "can_edit_features",
+    "can_edit_sprints",
 )
 
 

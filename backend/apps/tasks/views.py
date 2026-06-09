@@ -32,7 +32,15 @@ from apps.tasks.serializers import (
 class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     search_fields = ["title", "description", "tags"]
-    filterset_fields = ["status", "priority", "project", "assignees", "assignee_department"]
+    filterset_fields = [
+        "status",
+        "priority",
+        "project",
+        "feature",
+        "sprint",
+        "assignees",
+        "assignee_department",
+    ]
     ordering_fields = ["updated_at", "due_date", "created_at"]
     create_message = "Task created."
     update_message = "Task updated."
@@ -40,7 +48,7 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Task.objects.select_related(
-            "project", "assignee_department", "reporter"
+            "project", "feature", "sprint", "assignee_department", "reporter"
         ).prefetch_related("assignees")
         qs = qs.filter(project_id__in=user_project_ids(self.request.user))
         if self.action == "retrieve":

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.projects.models import Project, ProjectDocument, ProjectMember
+from apps.projects.models import Feature, Project, ProjectDocument, ProjectMember, Sprint
 
 
 class ProjectMemberInline(admin.TabularInline):
@@ -19,3 +19,15 @@ class ProjectAdmin(admin.ModelAdmin):
 @admin.register(ProjectDocument)
 class ProjectDocumentAdmin(admin.ModelAdmin):
     list_display = ("title", "project", "uploaded_by", "created_at")
+
+
+@admin.register(Feature)
+class FeatureAdmin(admin.ModelAdmin):
+    list_display = ("title", "project", "status", "priority", "owner")
+    list_filter = ("status", "priority", "project")
+
+
+@admin.register(Sprint)
+class SprintAdmin(admin.ModelAdmin):
+    list_display = ("name", "project", "status", "start_date", "end_date")
+    list_filter = ("status", "project")

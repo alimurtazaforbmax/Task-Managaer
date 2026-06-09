@@ -46,8 +46,8 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md"
       >
-        <h1 className="text-2xl font-bold text-slate-900">Task Manager</h1>
-        <p className="text-slate-500 mt-1 mb-6">Sign in to your workspace</p>
+        <h1 className="text-2xl font-bold text-slate-900">BetaFlow</h1>
+        <p className="text-slate-500 mt-1 mb-6">Sign in to your task management workspace</p>
         {error && (
           <p className="mb-4 text-sm text-red-600 bg-red-50 p-3 rounded">{error}</p>
         )}

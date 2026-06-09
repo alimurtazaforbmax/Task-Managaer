@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
 import SidebarUserPanel from "./SidebarUserPanel";
 import ToastContainer from "./ToastContainer";
+import TopBar from "./TopBar";
 import { useAuth } from "../context/AuthContext";
 import { formatRoleLabel } from "../utils/projectStyle";
 import { useMarkNotificationFromUrl } from "../hooks/useMarkNotificationFromUrl";
@@ -10,6 +11,8 @@ import { usePushNotifications } from "../hooks/usePushNotifications";
 const baseNav = [
   { to: "/", label: "Dashboard" },
   { to: "/projects", label: "Projects" },
+  { to: "/features", label: "Features" },
+  { to: "/sprints", label: "Sprints" },
   { to: "/tasks", label: "Tasks" },
   { to: "/bugs", label: "Bugs" },
   { to: "/tickets", label: "Tickets" },
@@ -28,8 +31,9 @@ export default function Layout() {
       <aside className="w-full md:w-64 shrink-0 bg-slate-900 text-white flex flex-col md:min-h-screen">
         <div className="p-6 border-b border-slate-700">
           <Link to="/" className="text-xl font-bold tracking-tight">
-            Task Manager
+            BetaFlow
           </Link>
+          <p className="text-slate-500 text-xs mt-0.5">Task Manager</p>
           {user && (
             <p className="text-slate-400 text-sm mt-1">{formatRoleLabel(user.role)}</p>
           )}
@@ -91,6 +95,7 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
+        {user && <TopBar onLogout={logout} />}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto w-full">
           <Outlet />
         </main>

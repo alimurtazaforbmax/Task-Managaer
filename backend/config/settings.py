@@ -145,7 +145,7 @@ else:
     ]
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Task Manager API",
+    "TITLE": "BetaFlow API",
     "VERSION": "1.0.0",
 }
 

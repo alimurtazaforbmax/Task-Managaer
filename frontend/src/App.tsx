@@ -18,6 +18,10 @@ import TicketsPage from "./pages/TicketsPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import AdminLogsPage from "./pages/AdminLogsPage";
 import RolesPage from "./pages/RolesPage";
+import FeaturesPage from "./pages/FeaturesPage";
+import FeatureDetailPage from "./pages/FeatureDetailPage";
+import SprintsPage from "./pages/SprintsPage";
+import SprintDetailPage from "./pages/SprintDetailPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -46,6 +50,10 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectDetailPage />} />
+        <Route path="features" element={<FeaturesPage />} />
+        <Route path="features/:id" element={<FeatureDetailPage />} />
+        <Route path="sprints" element={<SprintsPage />} />
+        <Route path="sprints/:id" element={<SprintDetailPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="tasks/:id" element={<TaskDetailPage />} />
         <Route path="bugs" element={<BugsPage />} />

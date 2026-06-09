@@ -85,6 +85,12 @@ export interface UserPermissions extends Record<string, boolean> {
   can_manage_departments: boolean;
   can_manage_roles: boolean;
   can_view_audit_logs: boolean;
+  can_create_features: boolean;
+  can_edit_features: boolean;
+  can_delete_features: boolean;
+  can_create_sprints: boolean;
+  can_edit_sprints: boolean;
+  can_delete_sprints: boolean;
 }
 
 export interface Department {
@@ -146,13 +152,56 @@ export interface Project {
   member_count?: number;
   task_count?: number;
   bug_count?: number;
+  feature_count?: number;
+  sprint_count?: number;
   members?: ProjectMember[];
+}
+
+export interface Feature {
+  id: number;
+  project: number;
+  project_name?: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  owner?: number | null;
+  owner_detail?: User;
+  created_by?: number;
+  created_by_detail?: User;
+  target_date?: string | null;
+  task_count?: number;
+  completed_task_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Sprint {
+  id: number;
+  project: number;
+  project_name?: string;
+  name: string;
+  goal?: string;
+  description?: string;
+  status: string;
+  start_date: string;
+  end_date: string;
+  created_by?: number;
+  created_by_detail?: User;
+  task_count?: number;
+  completed_task_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Task {
   id: number;
   project: number;
   project_name?: string;
+  feature?: number | null;
+  feature_title?: string | null;
+  sprint?: number | null;
+  sprint_name?: string | null;
   title: string;
   description: string;
   status: string;
@@ -255,11 +304,43 @@ export interface Attachment {
   attachment_type: string;
 }
 
+export interface DashboardSprintSummary {
+  id: number;
+  name: string;
+  project_id: number;
+  project_name: string;
+  end_date: string | null;
+  status: string;
+}
+
+export interface DashboardFeatureSummary {
+  id: number;
+  title: string;
+  project_id: number;
+  project_name: string;
+  status: string;
+  target_date: string | null;
+}
+
 export interface DashboardStats {
+  greeting_name?: string;
   my_open_tasks: number;
   my_open_bugs: number;
   project_open_bugs: number;
   overdue_tasks: number;
+  due_soon_tasks?: number;
+  my_projects_count?: number;
+  unread_notifications?: number;
+  pending_tickets?: number;
+  active_features?: number;
+  my_owned_features?: number;
+  active_sprints?: number;
+  can_approve_tickets?: boolean;
+  upcoming_tasks?: Task[];
+  recent_tasks?: Task[];
+  recent_bugs?: Bug[];
+  active_sprints_list?: DashboardSprintSummary[];
+  my_features?: DashboardFeatureSummary[];
 }
 
 export interface UserStats {
@@ -346,4 +427,8 @@ export const DEPARTMENT_OVERLAY_PERMISSIONS = [
   "can_create_bugs",
   "can_edit_tasks",
   "can_edit_bugs",
+  "can_create_features",
+  "can_create_sprints",
+  "can_edit_features",
+  "can_edit_sprints",
 ] as const;

@@ -17,6 +17,12 @@ const DEFAULT: UserPermissions = {
   can_manage_departments: false,
   can_manage_roles: false,
   can_view_audit_logs: false,
+  can_create_features: false,
+  can_edit_features: false,
+  can_delete_features: false,
+  can_create_sprints: false,
+  can_edit_sprints: false,
+  can_delete_sprints: false,
 };
 
 export function usePermissions(): UserPermissions {

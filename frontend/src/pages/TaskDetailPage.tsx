@@ -10,6 +10,7 @@ import WorkItemComments from "../components/workitem/WorkItemComments";
 import WorkItemHero from "../components/workitem/WorkItemHero";
 import WorkItemSection from "../components/workitem/WorkItemSection";
 import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
+import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Task } from "../types";
 
@@ -35,6 +36,8 @@ export default function TaskDetailPage() {
     assignees: [] as number[],
     due_date: "",
     tags: "",
+    feature: "",
+    sprint: "",
   });
 
   const { data: task } = useQuery({
@@ -44,6 +47,9 @@ export default function TaskDetailPage() {
       return unwrap(res);
     },
   });
+
+  const { data: features } = useProjectFeatures(task?.project);
+  const { data: sprints } = useProjectSprints(task?.project);
 
   useEffect(() => {
     if (task && showEdit) {
@@ -55,6 +61,8 @@ export default function TaskDetailPage() {
         assignees: task.assignees ?? [],
         due_date: task.due_date ?? "",
         tags: task.tags ?? "",
+        feature: task.feature ? String(task.feature) : "",
+        sprint: task.sprint ? String(task.sprint) : "",
       });
     }
   }, [task, showEdit]);
@@ -84,6 +92,8 @@ export default function TaskDetailPage() {
       const res = await api.patch<ApiResponse<Task>>(`/tasks/${id}/`, {
         ...editForm,
         due_date: editForm.due_date || null,
+        feature: editForm.feature ? Number(editForm.feature) : null,
+        sprint: editForm.sprint ? Number(editForm.sprint) : null,
       });
       return unwrap(res);
     },
@@ -149,6 +159,10 @@ export default function TaskDetailPage() {
         description={task.description}
         projectId={task.project}
         projectName={task.project_name}
+        featureId={task.feature}
+        featureTitle={task.feature_title}
+        sprintId={task.sprint}
+        sprintName={task.sprint_name}
         priority={task.priority}
         taskType={task.task_type}
         dueDate={task.due_date}
@@ -215,6 +229,38 @@ export default function TaskDetailPage() {
             selected={editForm.assignees}
             onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
           />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block space-y-1">
+              <span className="text-sm font-medium text-slate-700">Feature (optional)</span>
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={editForm.feature}
+                onChange={(e) => setEditForm({ ...editForm, feature: e.target.value })}
+              >
+                <option value="">None</option>
+                {features?.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium text-slate-700">Sprint (optional)</span>
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={editForm.sprint}
+                onChange={(e) => setEditForm({ ...editForm, sprint: e.target.value })}
+              >
+                <option value="">None</option>
+                {sprints?.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <input
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-2 shadow-sm"

@@ -17,6 +17,9 @@ const colors: Record<string, string> = {
   archived: "bg-slate-200 text-slate-600",
   pending: "bg-amber-100 text-amber-800",
   approved: "bg-green-100 text-green-800",
+  planned: "bg-blue-100 text-blue-800",
+  completed: "bg-green-100 text-green-800",
+  critical: "bg-rose-100 text-rose-800",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

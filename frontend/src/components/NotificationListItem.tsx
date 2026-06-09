@@ -15,6 +15,7 @@ export default function NotificationListItem({ notification }: NotificationListI
     mutationFn: () => markNotificationRead(notification.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
     },
   });
 

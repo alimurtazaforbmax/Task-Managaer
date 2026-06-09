@@ -11,6 +11,8 @@ export interface TaskFormState {
   task_type: string;
   due_date: string;
   assignees: number[];
+  feature: string;
+  sprint: string;
 }
 
 export interface BugFormState {
@@ -31,6 +33,8 @@ export const emptyTaskForm = (): TaskFormState => ({
   task_type: "feature",
   due_date: "",
   assignees: [],
+  feature: "",
+  sprint: "",
 });
 
 export const emptyBugForm = (): BugFormState => ({
@@ -82,6 +86,8 @@ interface TaskFormProps {
   projects?: { id: number; name: string }[];
   projectId?: string;
   onProjectChange?: (id: string) => void;
+  features?: { id: number; title: string }[];
+  sprints?: { id: number; name: string }[];
 }
 
 export function TaskCreateForm({
@@ -95,6 +101,8 @@ export function TaskCreateForm({
   projects,
   projectId,
   onProjectChange,
+  features,
+  sprints,
 }: TaskFormProps) {
   const [attachments, setAttachments] = useState<File[]>([]);
 
@@ -102,7 +110,7 @@ export function TaskCreateForm({
     <CreateFormShell
       type="task"
       title="New task"
-      subtitle="Describe the work, assign teammates, and attach reference files."
+      subtitle="Select project, then optionally link a feature and sprint for this work."
     >
       <form
         onSubmit={(e: FormEvent) => {
@@ -167,6 +175,44 @@ export function TaskCreateForm({
             </select>
           </div>
         </div>
+        {(features?.length || sprints?.length) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {features && features.length > 0 && (
+              <label className="block space-y-1">
+                <span className="text-sm font-medium text-slate-700">Feature (optional)</span>
+                <select
+                  className={INPUT}
+                  value={form.feature}
+                  onChange={(e) => onChange({ ...form, feature: e.target.value })}
+                >
+                  <option value="">None</option>
+                  {features.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {sprints && sprints.length > 0 && (
+              <label className="block space-y-1">
+                <span className="text-sm font-medium text-slate-700">Sprint (optional)</span>
+                <select
+                  className={INPUT}
+                  value={form.sprint}
+                  onChange={(e) => onChange({ ...form, sprint: e.target.value })}
+                >
+                  <option value="">None</option>
+                  {sprints.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
         <DueDateField
           value={form.due_date}
           onChange={(due_date) => onChange({ ...form, due_date })}

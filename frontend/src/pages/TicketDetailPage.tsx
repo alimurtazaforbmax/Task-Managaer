@@ -5,7 +5,7 @@ import api, { unwrap } from "../api/client";
 import BackLink from "../components/BackLink";
 import PageContainer from "../components/PageContainer";
 import StatusBadge from "../components/StatusBadge";
-import { useUsers } from "../hooks/useUsers";
+import { formatMemberLabel, useProjectMembers } from "../hooks/useProjectMembers";
 import type { ApiResponse, Department, Paginated, Project, Ticket } from "../types";
 
 const REQUEST_TYPES = [
@@ -33,8 +33,6 @@ export default function TicketDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
-  const { data: users } = useUsers();
-
   const { data: ticket, isLoading } = useQuery({
     queryKey: ["ticket", id],
     queryFn: async () => {
@@ -74,6 +72,10 @@ export default function TicketDetailPage() {
     mentioned_user: "",
     mentioned_department: "",
   });
+
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(
+    editForm.project || undefined
+  );
 
   useEffect(() => {
     if (ticket && showEdit) {
@@ -275,12 +277,18 @@ export default function TicketDetailPage() {
                   ))}
                 </select>
               </label>
-              <label className="block">
+              <label className="block sm:col-span-2">
                 <span className="text-sm font-medium text-slate-700">Project</span>
                 <select
                   required
                   value={editForm.project}
-                  onChange={(e) => setEditForm({ ...editForm, project: e.target.value })}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      project: e.target.value,
+                      mentioned_user: "",
+                    })
+                  }
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 >
                   {projects?.map((p) => (
@@ -297,12 +305,19 @@ export default function TicketDetailPage() {
                   onChange={(e) =>
                     setEditForm({ ...editForm, mentioned_user: e.target.value })
                   }
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  disabled={!editForm.project}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:bg-slate-50 disabled:text-slate-400"
                 >
-                  <option value="">None</option>
-                  {users?.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {formatUser(u)}
+                  <option value="">
+                    {!editForm.project
+                      ? "Select a project first"
+                      : membersLoading
+                        ? "Loading members..."
+                        : "None"}
+                  </option>
+                  {projectMembers?.map((m) => (
+                    <option key={m.user} value={m.user}>
+                      {formatMemberLabel(m)}
                     </option>
                   ))}
                 </select>

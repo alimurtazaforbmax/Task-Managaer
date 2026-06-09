@@ -44,6 +44,11 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             message="Notification marked as read.",
         )
 
+    @action(detail=False, methods=["get"], url_path="unread-count")
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return success_response(data={"count": count})
+
     @action(detail=False, methods=["post"], url_path="read-all")
     def mark_all_read(self, request):
         updated = self.get_queryset().filter(is_read=False).update(is_read=True)
@@ -119,42 +124,148 @@ class DashboardView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from datetime import timedelta
+
         from django.utils import timezone
 
+        from apps.accounts.permissions_util import user_has_permission
         from apps.bugs.constants import BUG_CLOSED_STATUSES
         from apps.bugs.models import Bug
+        from apps.bugs.serializers import BugListSerializer
         from apps.core.mixins import user_project_ids
+        from apps.core.models import Notification
+        from apps.projects.models import Feature, Sprint
         from apps.tasks.models import Task
+        from apps.tasks.serializers import TaskListSerializer
+        from apps.tickets.models import Ticket
 
         user = request.user
         project_ids = list(user_project_ids(user))
         today = timezone.now().date()
+        week_end = today + timedelta(days=7)
+        context = {"request": request}
 
-        my_tasks = Task.objects.filter(
+        my_task_qs = Task.objects.filter(
             project_id__in=project_ids, assignees=user
-        ).exclude(status__in=["done", "cancelled"]).count()
-        my_bugs = Bug.objects.filter(
+        ).exclude(status__in=["done", "cancelled"])
+        my_bug_qs = Bug.objects.filter(
             project_id__in=project_ids, assignees=user
-        ).exclude(status__in=BUG_CLOSED_STATUSES).count()
+        ).exclude(status__in=BUG_CLOSED_STATUSES)
+
+        my_tasks = my_task_qs.count()
+        my_bugs = my_bug_qs.count()
         open_bugs = Bug.objects.filter(
             project_id__in=project_ids, status="open"
         ).count()
-        overdue_tasks = (
-            Task.objects.filter(
+        overdue_tasks = my_task_qs.filter(
+            due_date__isnull=False,
+            due_date__lt=today,
+        ).count()
+        due_soon_tasks = my_task_qs.filter(
+            due_date__isnull=False,
+            due_date__gte=today,
+            due_date__lte=week_end,
+        ).count()
+
+        active_features = Feature.objects.filter(
+            project_id__in=project_ids,
+            status__in=["planned", "in_progress"],
+        ).count()
+        my_owned_features = Feature.objects.filter(
+            project_id__in=project_ids,
+            owner=user,
+        ).exclude(status__in=["done", "cancelled"]).count()
+        active_sprints = Sprint.objects.filter(
+            project_id__in=project_ids,
+            status="active",
+        ).count()
+
+        unread_notifications = Notification.objects.filter(
+            user=user, is_read=False
+        ).count()
+
+        pending_tickets = 0
+        if user_has_permission(user, "can_approve_tickets"):
+            pending_tickets = Ticket.objects.filter(
                 project_id__in=project_ids,
-                assignees=user,
-                due_date__isnull=False,
-                due_date__lt=today,
-            )
+                status="pending",
+            ).count()
+
+        upcoming_tasks = (
+            my_task_qs.filter(due_date__isnull=False, due_date__gte=today)
+            .select_related("project")
+            .order_by("due_date")[:5]
+        )
+        recent_tasks = (
+            my_task_qs.select_related("project")
+            .order_by("-updated_at")[:5]
+        )
+        active_sprint_list = (
+            Sprint.objects.filter(project_id__in=project_ids, status="active")
+            .select_related("project")
+            .order_by("end_date")[:5]
+        )
+        my_features = (
+            Feature.objects.filter(project_id__in=project_ids, owner=user)
             .exclude(status__in=["done", "cancelled"])
-            .count()
+            .select_related("project")
+            .order_by("target_date", "-updated_at")[:5]
+        )
+
+        display_name = (
+            f"{user.first_name} {user.last_name}".strip() or user.username
         )
 
         return success_response(
             data={
+                "greeting_name": display_name,
                 "my_open_tasks": my_tasks,
                 "my_open_bugs": my_bugs,
                 "project_open_bugs": open_bugs,
                 "overdue_tasks": overdue_tasks,
+                "due_soon_tasks": due_soon_tasks,
+                "my_projects_count": len(project_ids),
+                "unread_notifications": unread_notifications,
+                "pending_tickets": pending_tickets,
+                "active_features": active_features,
+                "my_owned_features": my_owned_features,
+                "active_sprints": active_sprints,
+                "can_approve_tickets": user_has_permission(
+                    user, "can_approve_tickets"
+                ),
+                "upcoming_tasks": TaskListSerializer(
+                    upcoming_tasks, many=True, context=context
+                ).data,
+                "recent_tasks": TaskListSerializer(
+                    recent_tasks, many=True, context=context
+                ).data,
+                "active_sprints_list": [
+                    {
+                        "id": sprint.id,
+                        "name": sprint.name,
+                        "project_id": sprint.project_id,
+                        "project_name": sprint.project.name,
+                        "end_date": sprint.end_date,
+                        "status": sprint.status,
+                    }
+                    for sprint in active_sprint_list
+                ],
+                "my_features": [
+                    {
+                        "id": feature.id,
+                        "title": feature.title,
+                        "project_id": feature.project_id,
+                        "project_name": feature.project.name,
+                        "status": feature.status,
+                        "target_date": feature.target_date,
+                    }
+                    for feature in my_features
+                ],
+                "recent_bugs": BugListSerializer(
+                    my_bug_qs.select_related("project")
+                    .order_by("-updated_at")[:5],
+                    many=True,
+                    context=context,
+                ).data,
             }
         )
