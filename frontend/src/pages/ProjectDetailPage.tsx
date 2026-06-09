@@ -4,17 +4,29 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import StatusBadge from "../components/StatusBadge";
+import {
+  BugCreateForm,
+  emptyBugForm,
+  emptyTaskForm,
+  TaskCreateForm,
+} from "../components/WorkItemForms";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug, Project, Task } from "../types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
+  const permissions = usePermissions();
   const { data: users } = useUsers();
   const qc = useQueryClient();
   const isAdmin = user?.role === "admin";
   const [showEdit, setShowEdit] = useState(false);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showBugForm, setShowBugForm] = useState(false);
+  const [taskForm, setTaskForm] = useState(emptyTaskForm);
+  const [bugForm, setBugForm] = useState(emptyBugForm);
   const [editForm, setEditForm] = useState({
     name: "",
     code: "",
@@ -76,6 +88,42 @@ export default function ProjectDetailPage() {
       setShowEdit(false);
       qc.invalidateQueries({ queryKey: ["project", id] });
       qc.invalidateQueries({ queryKey: ["projects"] });
+    },
+  });
+
+  const createTask = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<Task>>("/tasks/", {
+        ...taskForm,
+        project: Number(id),
+        status: "backlog",
+        due_date: taskForm.due_date || null,
+      });
+      return unwrap(res);
+    },
+    onSuccess: () => {
+      setShowTaskForm(false);
+      setTaskForm(emptyTaskForm());
+      qc.invalidateQueries({ queryKey: ["tasks", { project: id }] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
+  const createBug = useMutation({
+    mutationFn: async () => {
+      const res = await api.post<ApiResponse<Bug>>("/bugs/", {
+        ...bugForm,
+        project: Number(id),
+        status: "open",
+        due_date: bugForm.due_date || null,
+      });
+      return unwrap(res);
+    },
+    onSuccess: () => {
+      setShowBugForm(false);
+      setBugForm(emptyBugForm());
+      qc.invalidateQueries({ queryKey: ["bugs", { project: id }] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 
@@ -166,7 +214,30 @@ export default function ProjectDetailPage() {
       )}
 
       <section className="mt-10">
-        <h2 className="font-semibold text-lg">Tasks</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Tasks</h2>
+          {permissions.can_create_tasks && (
+            <button
+              onClick={() => {
+                setShowBugForm(false);
+                setShowTaskForm(!showTaskForm);
+              }}
+              className="text-sm bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700"
+            >
+              New task
+            </button>
+          )}
+        </div>
+        {showTaskForm && permissions.can_create_tasks && (
+          <div className="mt-4 bg-white border rounded-xl p-5">
+            <TaskCreateForm
+              form={taskForm}
+              users={users ?? []}
+              onChange={setTaskForm}
+              onSubmit={() => createTask.mutate()}
+            />
+          </div>
+        )}
         <ul className="mt-3 space-y-2">
           {tasks?.map((t) => (
             <li key={t.id}>
@@ -174,7 +245,13 @@ export default function ProjectDetailPage() {
                 to={`/tasks/${t.id}`}
                 className="flex items-center justify-between bg-white border rounded-lg px-4 py-3 hover:bg-slate-50"
               >
-                <span>{t.title}</span>
+                <div>
+                  <span>{t.title}</span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {t.priority}
+                    {t.due_date ? ` · due ${t.due_date}` : ""}
+                  </p>
+                </div>
                 <StatusBadge status={t.status} />
               </Link>
             </li>
@@ -183,7 +260,30 @@ export default function ProjectDetailPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="font-semibold text-lg">Bugs</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">Bugs</h2>
+          {permissions.can_create_bugs && (
+            <button
+              onClick={() => {
+                setShowTaskForm(false);
+                setShowBugForm(!showBugForm);
+              }}
+              className="text-sm bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700"
+            >
+              Report bug
+            </button>
+          )}
+        </div>
+        {showBugForm && permissions.can_create_bugs && (
+          <div className="mt-4 bg-white border rounded-xl p-5">
+            <BugCreateForm
+              form={bugForm}
+              users={users ?? []}
+              onChange={setBugForm}
+              onSubmit={() => createBug.mutate()}
+            />
+          </div>
+        )}
         <ul className="mt-3 space-y-2">
           {bugs?.map((b) => (
             <li key={b.id}>
@@ -191,7 +291,13 @@ export default function ProjectDetailPage() {
                 to={`/bugs/${b.id}`}
                 className="flex items-center justify-between bg-white border rounded-lg px-4 py-3 hover:bg-slate-50"
               >
-                <span>{b.title}</span>
+                <div>
+                  <span>{b.title}</span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {b.severity} · {b.priority}
+                    {b.due_date ? ` · due ${b.due_date}` : ""}
+                  </p>
+                </div>
                 <StatusBadge status={b.status} />
               </Link>
             </li>

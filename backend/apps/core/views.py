@@ -52,6 +52,7 @@ class DashboardView(generics.GenericAPIView):
     def get(self, request):
         from django.utils import timezone
 
+        from apps.bugs.constants import BUG_CLOSED_STATUSES
         from apps.bugs.models import Bug
         from apps.core.mixins import user_project_ids
         from apps.tasks.models import Task
@@ -62,10 +63,10 @@ class DashboardView(generics.GenericAPIView):
 
         my_tasks = Task.objects.filter(
             project_id__in=project_ids, assignees=user
-        ).exclude(status="done").count()
+        ).exclude(status__in=["done", "cancelled"]).count()
         my_bugs = Bug.objects.filter(
             project_id__in=project_ids, assignees=user
-        ).exclude(status="closed").count()
+        ).exclude(status__in=BUG_CLOSED_STATUSES).count()
         open_bugs = Bug.objects.filter(
             project_id__in=project_ids, status="open"
         ).count()

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
-import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import { BugCreateForm, emptyBugForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug, Paginated, Project } from "../types";
@@ -12,17 +12,9 @@ export default function BugsPage() {
   const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [projectId, setProjectId] = useState("");
   const { data: users } = useUsers();
-  const [form, setForm] = useState({
-    project: "",
-    title: "",
-    description: "",
-    steps_to_reproduce: "",
-    environment: "",
-    severity: "medium",
-    priority: "medium",
-    assignees: [] as number[],
-  });
+  const [form, setForm] = useState(emptyBugForm);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -46,14 +38,18 @@ export default function BugsPage() {
     mutationFn: async () => {
       const res = await api.post<ApiResponse<Bug>>("/bugs/", {
         ...form,
-        project: Number(form.project),
+        project: Number(projectId),
         status: "open",
+        due_date: form.due_date || null,
       });
       return unwrap(res);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bugs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
       setShowForm(false);
+      setProjectId("");
+      setForm(emptyBugForm());
     },
   });
 
@@ -75,55 +71,18 @@ export default function BugsPage() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            createBug.mutate();
-          }}
-          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
-        >
-          <select
-            required
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.project}
-            onChange={(e) => setForm({ ...form, project: e.target.value })}
-          >
-            <option value="">Select project</option>
-            {projects?.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <input
-            required
-            placeholder="Title"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <textarea
-            placeholder="Steps to reproduce"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.steps_to_reproduce}
-            onChange={(e) => setForm({ ...form, steps_to_reproduce: e.target.value })}
-          />
-          <input
-            placeholder="Environment (e.g. Chrome / Windows)"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.environment}
-            onChange={(e) => setForm({ ...form, environment: e.target.value })}
-          />
-          <MultiUserSelect
-            label="Assign to"
+        <div className="mt-6 bg-white border rounded-xl p-5">
+          <BugCreateForm
+            form={form}
             users={users ?? []}
-            selected={form.assignees}
-            onChange={(ids) => setForm({ ...form, assignees: ids })}
+            onChange={setForm}
+            onSubmit={() => createBug.mutate()}
+            showProjectSelect
+            projects={projects}
+            projectId={projectId}
+            onProjectChange={setProjectId}
           />
-          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
-            Submit bug
-          </button>
-        </form>
+        </div>
       )}
 
       {isLoading ? (
@@ -140,6 +99,8 @@ export default function BugsPage() {
                 <p className="font-medium">{b.title}</p>
                 <p className="text-xs text-slate-500">
                   {b.project_name}
+                  {b.priority ? ` · ${b.priority}` : ""}
+                  {b.due_date ? ` · due ${b.due_date}` : ""}
                   {b.assignees_detail?.length
                     ? ` · ${b.assignees_detail.map((u) => u.username).join(", ")}`
                     : ""}
