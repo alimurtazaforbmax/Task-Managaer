@@ -31,6 +31,17 @@ class IsProjectMember(BasePermission):
         ).exists()
 
 
+def can_change_status(user, obj) -> bool:
+    """Only the reporter (creator) or assignees may change status."""
+    if not user or not user.is_authenticated:
+        return False
+    if obj.reporter_id == user.id:
+        return True
+    if obj.assignees.filter(pk=user.pk).exists():
+        return True
+    return False
+
+
 def is_owner_or_admin(user, obj) -> bool:
     if user.role == "admin":
         return True

@@ -6,14 +6,14 @@ from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment
-from apps.core.permissions import can_delete_attachment, is_owner_or_admin
+from apps.core.permissions import can_change_status, can_delete_attachment, is_owner_or_admin
 from apps.core.responses import error_response, success_response
 from apps.core.serializers import (
     AttachmentSerializer,
     CommentSerializer,
     TimeEntrySerializer,
 )
-from apps.core.services import log_activity
+from apps.core.services import log_activity, notify_status_change
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.tasks.models import Task
 from apps.tasks.serializers import (
@@ -109,10 +109,21 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="status")
     def change_status(self, request, pk=None):
         task = self.get_object()
+        if not can_change_status(request.user, task):
+            return error_response(
+                "Only the task owner or assignees can change status.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = TaskStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        new_status = serializer.validated_data["status"]
         old = task.status
-        task.status = serializer.validated_data["status"]
+        if old == new_status:
+            return success_response(
+                data=TaskSerializer(task, context={"request": request}).data,
+                message=f"Status is already {old.replace('_', ' ')}.",
+            )
+        task.status = new_status
         task.save(update_fields=["status", "updated_at"])
         log_activity(
             actor=request.user,
@@ -120,9 +131,18 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             detail=f"{old} -> {task.status}",
             task=task,
         )
+        notify_status_change(
+            obj=task,
+            actor=request.user,
+            old_status=old,
+            new_status=task.status,
+        )
         return success_response(
             data=TaskSerializer(task, context={"request": request}).data,
-            message="Status updated.",
+            message=(
+                f"Status changed from {old.replace('_', ' ')} "
+                f"to {task.status.replace('_', ' ')}."
+            ),
         )
 
     @action(detail=True, methods=["get", "post"], url_path="comments")

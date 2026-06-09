@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import BackLink from "../components/BackLink";
 import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import WorkItemActions from "../components/WorkItemActions";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Task } from "../types";
 
@@ -11,11 +13,16 @@ const TASK_STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "b
 
 export default function TaskDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: users } = useUsers();
   const [comment, setComment] = useState("");
   const [minutes, setMinutes] = useState("");
   const [showEdit, setShowEdit] = useState(false);
+  const [statusFeedback, setStatusFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -49,8 +56,23 @@ export default function TaskDetailPage() {
   }, [task, showEdit]);
 
   const statusMutation = useMutation({
-    mutationFn: (status: string) => api.post(`/tasks/${id}/status/`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["task", id] }),
+    mutationFn: async (status: string) => {
+      const res = await api.post<ApiResponse<Task>>(`/tasks/${id}/status/`, { status });
+      return res.data;
+    },
+    onSuccess: (response) => {
+      setStatusFeedback({ type: "success", message: response.message });
+      qc.invalidateQueries({ queryKey: ["task", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setStatusFeedback({
+        type: "error",
+        message: err.response?.data?.message ?? "Could not update status.",
+      });
+    },
   });
 
   const updateTask = useMutation({
@@ -85,23 +107,49 @@ export default function TaskDetailPage() {
     },
   });
 
+  const deleteTask = useMutation({
+    mutationFn: async () => {
+      const res = await api.delete<ApiResponse<null>>(`/tasks/${id}/`);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      if (task?.project) {
+        qc.invalidateQueries({ queryKey: ["project-tasks", String(task.project)] });
+      }
+      navigate("/tasks");
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setStatusFeedback({
+        type: "error",
+        message: err.response?.data?.message ?? "Could not delete task.",
+      });
+    },
+  });
+
   if (!task) return <p className="text-slate-400">Loading...</p>;
 
   return (
     <div className="max-w-3xl">
-      <Link to="/tasks" className="text-sm text-brand-600 hover:underline">← Tasks</Link>
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex items-center gap-3">
+      <BackLink to="/tasks" label="Tasks" />
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mt-2">
+        <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-2xl font-bold">{task.title}</h1>
           <StatusBadge status={task.status} />
         </div>
         {task.is_owner && (
-          <button
-            onClick={() => setShowEdit(!showEdit)}
-            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
-          >
-            Edit task
-          </button>
+          <div className="ml-auto shrink-0 pl-6">
+            <WorkItemActions
+              editLabel={showEdit ? "Close edit" : "Edit task"}
+              itemTitle={task.title}
+              isEditing={showEdit}
+              onEdit={() => setShowEdit(!showEdit)}
+              onDelete={() => deleteTask.mutate()}
+              deletePending={deleteTask.isPending}
+            />
+          </div>
         )}
       </div>
       <p className="text-sm text-slate-500 mt-1">
@@ -170,19 +218,38 @@ export default function TaskDetailPage() {
         </form>
       )}
 
-      <div className="mt-6 flex gap-2 flex-wrap">
-        {TASK_STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => statusMutation.mutate(s)}
-            className={`text-xs px-3 py-1 rounded-full border ${
-              task.status === s ? "bg-brand-600 text-white border-brand-600" : "hover:bg-slate-100"
-            }`}
-          >
-            {s.replace(/_/g, " ")}
-          </button>
-        ))}
-      </div>
+      {statusFeedback && (
+        <p
+          className={`mt-4 text-sm rounded-lg px-3 py-2 ${
+            statusFeedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-rose-50 text-rose-800 border border-rose-200"
+          }`}
+        >
+          {statusFeedback.message}
+        </p>
+      )}
+
+      {task.can_change_status ? (
+        <div className="mt-6 flex gap-2 flex-wrap">
+          {TASK_STATUSES.map((s) => (
+            <button
+              key={s}
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(s)}
+              className={`text-xs px-3 py-1 rounded-full border ${
+                task.status === s ? "bg-brand-600 text-white border-brand-600" : "hover:bg-slate-100"
+              }`}
+            >
+              {s.replace(/_/g, " ")}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-6 text-sm text-slate-500">
+          Only the task owner or assignees can change status.
+        </p>
+      )}
 
       <section className="mt-10 bg-white border rounded-xl p-5">
         <h2 className="font-semibold">Comments</h2>

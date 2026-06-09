@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import BackLink from "../components/BackLink";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import StatusBadge from "../components/StatusBadge";
 import {
@@ -131,9 +132,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div>
-      <Link to="/projects" className="text-sm text-brand-600 hover:underline">
-        ← Projects
-      </Link>
+      <BackLink to="/projects" label="Projects" />
       <div className="flex items-center justify-between mt-2">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{project.name}</h1>

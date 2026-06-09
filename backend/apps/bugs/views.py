@@ -15,14 +15,14 @@ from apps.bugs.serializers import (
 from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment, CommentType
-from apps.core.permissions import can_delete_attachment, is_owner_or_admin
+from apps.core.permissions import can_change_status, can_delete_attachment, is_owner_or_admin
 from apps.core.responses import error_response, success_response
 from apps.core.serializers import (
     AttachmentSerializer,
     CommentSerializer,
     TimeEntrySerializer,
 )
-from apps.core.services import log_activity, notify_user
+from apps.core.services import log_activity, notify_status_change, notify_user
 from apps.core.utils import validate_file_size, validate_mime_type
 
 
@@ -124,6 +124,11 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="status")
     def change_status(self, request, pk=None):
         bug = self.get_object()
+        if not can_change_status(request.user, bug):
+            return error_response(
+                "Only the bug owner or assignees can change status.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = BugStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_status = serializer.validated_data["status"]
@@ -133,6 +138,11 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         old = bug.status
+        if old == new_status:
+            return success_response(
+                data=BugSerializer(bug, context={"request": request}).data,
+                message=f"Status is already {old.replace('_', ' ')}.",
+            )
         bug.status = new_status
         bug.save(update_fields=["status", "updated_at"])
         log_activity(
@@ -141,24 +151,32 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             detail=f"{old} -> {bug.status}",
             bug=bug,
         )
-        if bug.reporter:
-            notify_user(
-                user=bug.reporter,
-                title="Bug status updated",
-                message=f"{bug.title} is now {bug.status}",
-                link=f"/bugs/{bug.id}",
-            )
+        notify_status_change(
+            obj=bug,
+            actor=request.user,
+            old_status=old,
+            new_status=bug.status,
+        )
         return success_response(
             data=BugSerializer(bug, context={"request": request}).data,
-            message="Status updated.",
+            message=(
+                f"Status changed from {old.replace('_', ' ')} "
+                f"to {bug.status.replace('_', ' ')}."
+            ),
         )
 
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request, pk=None):
         bug = self.get_object()
+        if not can_change_status(request.user, bug):
+            return error_response(
+                "Only the bug owner or assignees can reject this bug.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = BugRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         reason = serializer.validated_data["reason"]
+        old = bug.status
 
         with transaction.atomic():
             bug.status = BugStatus.REJECTED
@@ -176,17 +194,16 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 bug=bug,
             )
 
-        if bug.reporter:
-            notify_user(
-                user=bug.reporter,
-                title="Bug rejected",
-                message=f"{bug.title} was rejected: {reason[:120]}",
-                link=f"/bugs/{bug.id}",
-            )
+        notify_status_change(
+            obj=bug,
+            actor=request.user,
+            old_status=old,
+            new_status=bug.status,
+        )
 
         return success_response(
             data=BugSerializer(bug, context={"request": request}).data,
-            message="Bug rejected.",
+            message=f"Bug rejected. Status changed from {old.replace('_', ' ')} to rejected.",
         )
 
     @action(detail=True, methods=["get", "post"], url_path="comments")

@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
 from apps.bugs.models import Bug
+from apps.core.permissions import can_change_status
 from apps.core.serializers import (
     ActivityLogSerializer,
     AttachmentSerializer,
@@ -18,6 +19,7 @@ class BugSerializer(serializers.ModelSerializer):
     reporter_detail = UserSerializer(source="reporter", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
     is_owner = serializers.SerializerMethodField()
+    can_change_status = serializers.SerializerMethodField()
     comments = CommentSerializer(many=True, read_only=True)
     attachments = AttachmentSerializer(many=True, read_only=True)
     time_entries = TimeEntrySerializer(many=True, read_only=True)
@@ -44,6 +46,7 @@ class BugSerializer(serializers.ModelSerializer):
             "reporter",
             "reporter_detail",
             "is_owner",
+            "can_change_status",
             "due_date",
             "estimated_hours",
             "tags",
@@ -61,6 +64,7 @@ class BugSerializer(serializers.ModelSerializer):
             "project_name",
             "status",
             "is_owner",
+            "can_change_status",
             "comments",
             "attachments",
             "time_entries",
@@ -78,6 +82,12 @@ class BugSerializer(serializers.ModelSerializer):
         if request.user.role == "admin":
             return True
         return obj.reporter_id == request.user.id
+
+    def get_can_change_status(self, obj) -> bool:
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            return False
+        return can_change_status(request.user, obj)
 
 
 class BugUpdateSerializer(serializers.ModelSerializer):

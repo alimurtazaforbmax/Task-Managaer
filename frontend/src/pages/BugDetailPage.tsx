@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import BackLink from "../components/BackLink";
 import MultiUserSelect from "../components/MultiUserSelect";
 import StatusBadge from "../components/StatusBadge";
+import WorkItemActions from "../components/WorkItemActions";
 import { useAuth } from "../context/AuthContext";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug } from "../types";
@@ -19,6 +21,7 @@ const BUG_STATUSES = [
 
 export default function BugDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: users } = useUsers();
   const qc = useQueryClient();
@@ -27,6 +30,10 @@ export default function BugDetailPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [statusFeedback, setStatusFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -62,8 +69,23 @@ export default function BugDetailPage() {
   }, [bug, showEdit]);
 
   const statusMutation = useMutation({
-    mutationFn: (status: string) => api.post(`/bugs/${id}/status/`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bug", id] }),
+    mutationFn: async (status: string) => {
+      const res = await api.post<ApiResponse<Bug>>(`/bugs/${id}/status/`, { status });
+      return res.data;
+    },
+    onSuccess: (response) => {
+      setStatusFeedback({ type: "success", message: response.message });
+      qc.invalidateQueries({ queryKey: ["bug", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setStatusFeedback({
+        type: "error",
+        message: err.response?.data?.message ?? "Could not update status.",
+      });
+    },
   });
 
   const updateBug = useMutation({
@@ -81,11 +103,24 @@ export default function BugDetailPage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (reason: string) => api.post(`/bugs/${id}/reject/`, { reason }),
-    onSuccess: () => {
+    mutationFn: async (reason: string) => {
+      const res = await api.post<ApiResponse<Bug>>(`/bugs/${id}/reject/`, { reason });
+      return res.data;
+    },
+    onSuccess: (response) => {
       setRejectReason("");
       setShowReject(false);
+      setStatusFeedback({ type: "success", message: response.message });
       qc.invalidateQueries({ queryKey: ["bug", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setStatusFeedback({
+        type: "error",
+        message: err.response?.data?.message ?? "Could not reject bug.",
+      });
     },
   });
 
@@ -115,26 +150,52 @@ export default function BugDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bug", id] }),
   });
 
+  const deleteBug = useMutation({
+    mutationFn: async () => {
+      const res = await api.delete<ApiResponse<null>>(`/bugs/${id}/`);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bugs"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      if (bug?.project) {
+        qc.invalidateQueries({ queryKey: ["project-bugs", String(bug.project)] });
+      }
+      navigate("/bugs");
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setStatusFeedback({
+        type: "error",
+        message: err.response?.data?.message ?? "Could not delete bug.",
+      });
+    },
+  });
+
   if (!bug) return <p className="text-slate-400">Loading...</p>;
 
-  const canReject = user?.role === "developer" || user?.role === "admin";
+  const canReject = bug.can_change_status && bug.status !== "rejected";
   const canDeleteFile = bug.is_owner || user?.role === "admin";
 
   return (
     <div className="max-w-3xl">
-      <Link to="/bugs" className="text-sm text-brand-600 hover:underline">← Bugs</Link>
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex items-center gap-3">
+      <BackLink to="/bugs" label="Bugs" />
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mt-2">
+        <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-2xl font-bold">{bug.title}</h1>
           <StatusBadge status={bug.status} />
         </div>
         {bug.is_owner && (
-          <button
-            onClick={() => setShowEdit(!showEdit)}
-            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
-          >
-            Edit bug
-          </button>
+          <div className="ml-auto shrink-0 pl-6">
+            <WorkItemActions
+              editLabel={showEdit ? "Close edit" : "Edit bug"}
+              itemTitle={bug.title}
+              isEditing={showEdit}
+              onEdit={() => setShowEdit(!showEdit)}
+              onDelete={() => deleteBug.mutate()}
+              deletePending={deleteBug.isPending}
+            />
+          </div>
         )}
       </div>
       <p className="text-sm text-slate-500 mt-1">
@@ -215,27 +276,46 @@ export default function BugDetailPage() {
         </form>
       )}
 
-      <div className="mt-6 flex gap-2 flex-wrap">
-        {BUG_STATUSES.map((s) => (
-          <button
-            key={s}
-            onClick={() => statusMutation.mutate(s)}
-            className={`text-xs px-3 py-1 rounded-full border ${
-              bug.status === s ? "bg-brand-600 text-white border-brand-600" : "hover:bg-slate-100"
-            }`}
-          >
-            {s.replace(/_/g, " ")}
-          </button>
-        ))}
-        {canReject && bug.status !== "rejected" && (
-          <button
-            onClick={() => setShowReject(!showReject)}
-            className="text-xs px-3 py-1 rounded-full border border-rose-300 text-rose-700 hover:bg-rose-50"
-          >
-            Reject
-          </button>
-        )}
-      </div>
+      {statusFeedback && (
+        <p
+          className={`mt-4 text-sm rounded-lg px-3 py-2 ${
+            statusFeedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-rose-50 text-rose-800 border border-rose-200"
+          }`}
+        >
+          {statusFeedback.message}
+        </p>
+      )}
+
+      {bug.can_change_status ? (
+        <div className="mt-6 flex gap-2 flex-wrap">
+          {BUG_STATUSES.map((s) => (
+            <button
+              key={s}
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(s)}
+              className={`text-xs px-3 py-1 rounded-full border ${
+                bug.status === s ? "bg-brand-600 text-white border-brand-600" : "hover:bg-slate-100"
+              }`}
+            >
+              {s.replace(/_/g, " ")}
+            </button>
+          ))}
+          {canReject && (
+            <button
+              onClick={() => setShowReject(!showReject)}
+              className="text-xs px-3 py-1 rounded-full border border-rose-300 text-rose-700 hover:bg-rose-50"
+            >
+              Reject
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="mt-6 text-sm text-slate-500">
+          Only the bug owner or assignees can change status.
+        </p>
+      )}
 
       {showReject && (
         <form

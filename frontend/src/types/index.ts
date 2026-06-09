@@ -82,6 +82,7 @@ export interface Task {
   reporter?: number;
   reporter_detail?: User;
   is_owner?: boolean;
+  can_change_status?: boolean;
   due_date: string | null;
   estimated_hours?: string | null;
   tags?: string;
@@ -108,6 +109,7 @@ export interface Bug {
   reporter?: number;
   reporter_detail?: User;
   is_owner?: boolean;
+  can_change_status?: boolean;
   due_date: string | null;
   comments?: Comment[];
   attachments?: Attachment[];
