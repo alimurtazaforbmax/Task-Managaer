@@ -48,6 +48,30 @@ def is_owner_or_admin(user, obj) -> bool:
     return obj.reporter_id == user.id
 
 
+def is_admin_or_project_manager(user) -> bool:
+    return (
+        user
+        and user.is_authenticated
+        and user.role in ("admin", "project_manager")
+    )
+
+
+def can_edit_ticket(user, ticket) -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    if is_admin_or_project_manager(user):
+        return True
+    return ticket.raised_by_id == user.id
+
+
+def can_approve_ticket(user, ticket) -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    if not is_admin_or_project_manager(user):
+        return False
+    return ticket.status == "pending"
+
+
 def can_delete_attachment(user, attachment, parent_obj) -> bool:
     if user.role == "admin":
         return True

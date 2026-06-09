@@ -13,7 +13,7 @@ from apps.core.serializers import (
     CommentSerializer,
     TimeEntrySerializer,
 )
-from apps.core.services import log_activity, notify_status_change
+from apps.core.services import log_activity, notify_status_change, record_audit_log
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.tasks.models import Task
 from apps.tasks.serializers import (
@@ -76,6 +76,13 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             detail=task.title,
             task=task,
         )
+        record_audit_log(
+            actor=self.request.user,
+            action="created",
+            entity_type="task",
+            entity_id=task.id,
+            entity_label=task.title,
+        )
 
     def update(self, request, *args, **kwargs):
         task = self.get_object()
@@ -89,6 +96,13 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         task.refresh_from_db()
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="task",
+            entity_id=task.id,
+            entity_label=task.title,
+        )
         return success_response(
             data=TaskSerializer(
                 Task.objects.prefetch_related("assignees").get(pk=task.pk),
@@ -104,6 +118,13 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 "Only the task owner can delete this task.",
                 status=status.HTTP_403_FORBIDDEN,
             )
+        record_audit_log(
+            actor=request.user,
+            action="deleted",
+            entity_type="task",
+            entity_id=task.id,
+            entity_label=task.title,
+        )
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], url_path="status")

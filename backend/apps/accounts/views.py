@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.http import HttpResponse
 from rest_framework import generics, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -11,8 +13,12 @@ from apps.accounts.serializers import (
     UserSerializer,
     UserUpdateSerializer,
 )
+from apps.accounts.department_summary import build_department_summary
+from apps.accounts.user_report import build_user_report
+from apps.accounts.user_summary import build_user_summary
 from apps.core.permissions import IsAdmin
 from apps.core.responses import error_response, success_response
+from apps.core.services import record_audit_log
 
 User = get_user_model()
 
@@ -33,13 +39,16 @@ class RegisterView(generics.CreateAPIView):
 
 
 class MeView(generics.RetrieveUpdateAPIView):
-    serializer_class = UserSerializer
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return UserUpdateSerializer
+        return UserSerializer
 
     def get_object(self):
         return User.objects.select_related("department").get(pk=self.request.user.pk)
 
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_object())
+        serializer = UserSerializer(self.get_object(), context={"request": request})
         return success_response(data=serializer.data)
 
     def update(self, request, *args, **kwargs):
@@ -48,8 +57,11 @@ class MeView(generics.RetrieveUpdateAPIView):
             self.get_object(), data=request.data, partial=partial
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return success_response(data=serializer.data, message="Profile updated.")
+        user = serializer.save()
+        return success_response(
+            data=UserSerializer(user, context={"request": request}).data,
+            message="Profile updated.",
+        )
 
 
 class LoginView(TokenObtainPairView):
@@ -92,13 +104,29 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return success_response(data=serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_object())
+        serializer = self.get_serializer(
+            self.get_object(), context={"request": request}
+        )
         return success_response(data=serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="summary")
+    def summary(self, request, pk=None):
+        department = self.get_object()
+        return success_response(
+            data=build_department_summary(department, request)
+        )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        department = serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="created",
+            entity_type="department",
+            entity_id=department.id,
+            entity_label=department.name,
+        )
         return success_response(
             data=serializer.data,
             message="Department created.",
@@ -106,11 +134,19 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
+        department = self.get_object()
         serializer = self.get_serializer(
-            self.get_object(), data=request.data, partial=kwargs.get("partial", False)
+            department, data=request.data, partial=kwargs.get("partial", False)
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="department",
+            entity_id=department.id,
+            entity_label=department.name,
+        )
         return success_response(data=serializer.data, message="Department updated.")
 
     def destroy(self, request, *args, **kwargs):
@@ -120,6 +156,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                 "Cannot delete department with assigned users. Reassign users first.",
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        record_audit_log(
+            actor=request.user,
+            action="deleted",
+            entity_type="department",
+            entity_id=department.id,
+            entity_label=department.name,
+        )
         department.delete()
         return success_response(message="Department deleted.", status=status.HTTP_200_OK)
 
@@ -152,15 +195,53 @@ class UserViewSet(viewsets.ModelViewSet):
         return success_response(data=serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_object())
+        serializer = self.get_serializer(
+            self.get_object(), context={"request": request}
+        )
         return success_response(data=serializer.data)
+
+    @action(detail=True, methods=["get"], url_path="summary")
+    def summary(self, request, pk=None):
+        user = self.get_object()
+        payload = build_user_summary(user, request)
+        payload["user"] = UserSerializer(user, context={"request": request}).data
+        return success_response(data=payload)
+
+    @action(detail=True, methods=["get"], url_path="report")
+    def report(self, request, pk=None):
+        user = self.get_object()
+        if request.query_params.get("export") == "pdf":
+            try:
+                from apps.accounts.user_report import build_user_report_pdf
+
+                pdf_bytes = build_user_report_pdf(user, request)
+            except ModuleNotFoundError as exc:
+                if exc.name == "reportlab":
+                    return error_response(
+                        "PDF reports require reportlab. Install dependencies with: pip install -r requirements.txt",
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+                raise
+            response = HttpResponse(pdf_bytes, content_type="application/pdf")
+            response["Content-Disposition"] = (
+                f'attachment; filename="user-report-{user.username}.pdf"'
+            )
+            return response
+        return success_response(data=build_user_report(user, request))
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="created",
+            entity_type="user",
+            entity_id=user.id,
+            entity_label=user.username,
+        )
         return success_response(
-            data=UserSerializer(user).data,
+            data=UserSerializer(user, context={"request": request}).data,
             message="User created.",
             status=status.HTTP_201_CREATED,
         )
@@ -172,10 +253,27 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        return success_response(data=UserSerializer(user).data, message="User updated.")
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="user",
+            entity_id=user.id,
+            entity_label=user.username,
+        )
+        return success_response(
+            data=UserSerializer(user, context={"request": request}).data,
+            message="User updated.",
+        )
 
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()
         user.is_active = False
         user.save(update_fields=["is_active"])
+        record_audit_log(
+            actor=request.user,
+            action="deactivated",
+            entity_type="user",
+            entity_id=user.id,
+            entity_label=user.username,
+        )
         return success_response(message="User deactivated.")

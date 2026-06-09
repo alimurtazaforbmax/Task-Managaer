@@ -1,6 +1,12 @@
+import json
+import logging
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from apps.core.models import ActivityLog, Notification
+from apps.core.models import ActivityLog, AuditLog, Notification, PushSubscription
+
+logger = logging.getLogger(__name__)
 
 
 def log_activity(*, actor, action: str, detail: str = "", task=None, bug=None):
@@ -13,12 +19,90 @@ def log_activity(*, actor, action: str, detail: str = "", task=None, bug=None):
     )
 
 
+def record_audit_log(
+    *,
+    actor,
+    action: str,
+    entity_type: str,
+    entity_id: int,
+    entity_label: str = "",
+    detail: str = "",
+    changes: dict | None = None,
+) -> None:
+    AuditLog.objects.create(
+        actor=actor,
+        action=action,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        entity_label=entity_label,
+        detail=detail,
+        changes=changes or {},
+    )
+
+
+def send_push_to_user(
+    *, user, title: str, message: str, link: str = "", notification_id: int | None = None
+) -> None:
+    if not settings.VAPID_PRIVATE_KEY:
+        return
+
+    try:
+        from pywebpush import WebPushException, webpush
+    except ImportError:
+        logger.warning("pywebpush is not installed; skipping push notification.")
+        return
+
+    payload = json.dumps(
+        {
+            "title": title,
+            "message": message,
+            "link": link,
+            "notification_id": notification_id,
+        }
+    )
+    subscriptions = PushSubscription.objects.filter(user=user)
+
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription.endpoint,
+                    "keys": {
+                        "p256dh": subscription.p256dh,
+                        "auth": subscription.auth,
+                    },
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": settings.VAPID_ADMIN_EMAIL},
+            )
+        except WebPushException as exc:
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code in (404, 410):
+                subscription.delete()
+            else:
+                logger.warning(
+                    "Push failed for user %s: %s",
+                    user.pk,
+                    exc,
+                )
+        except Exception as exc:
+            logger.warning("Push failed for user %s: %s", user.pk, exc)
+
+
 def notify_user(*, user, title: str, message: str, link: str = ""):
-    Notification.objects.create(
+    notification = Notification.objects.create(
         user=user,
         title=title,
         message=message,
         link=link,
+    )
+    send_push_to_user(
+        user=user,
+        title=title,
+        message=message,
+        link=link,
+        notification_id=notification.id,
     )
 
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
-import StatusBadge from "../components/StatusBadge";
+import PageContainer from "../components/PageContainer";
+import WorkItemRow from "../components/WorkItemRow";
 import { BugCreateForm, emptyBugForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
+import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import type { ApiResponse, Bug, Paginated, Project } from "../types";
 
 export default function BugsPage() {
@@ -35,14 +36,18 @@ export default function BugsPage() {
   });
 
   const createBug = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (attachments: File[]) => {
       const res = await api.post<ApiResponse<Bug>>("/bugs/", {
         ...form,
         project: Number(projectId),
         status: "open",
         due_date: form.due_date || null,
       });
-      return unwrap(res);
+      const bug = unwrap(res);
+      if (attachments.length) {
+        await uploadWorkItemAttachments("bugs", bug.id, attachments);
+      }
+      return bug;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bugs"] });
@@ -54,16 +59,16 @@ export default function BugsPage() {
   });
 
   return (
-    <div>
+    <PageContainer>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Bugs</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Bugs</h1>
           <p className="text-slate-500 mt-1">QA issues and defect tracking</p>
         </div>
         {permissions.can_create_bugs && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
           >
             Report bug
           </button>
@@ -71,12 +76,13 @@ export default function BugsPage() {
       </div>
 
       {showForm && (
-        <div className="mt-6 bg-white border rounded-xl p-5">
+        <div className="mt-6">
           <BugCreateForm
             form={form}
             users={users ?? []}
             onChange={setForm}
-            onSubmit={() => createBug.mutate()}
+            onSubmit={(files) => createBug.mutate(files)}
+            isSubmitting={createBug.isPending}
             showProjectSelect
             projects={projects}
             projectId={projectId}
@@ -88,29 +94,31 @@ export default function BugsPage() {
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading...</p>
       ) : (
-        <div className="mt-8 space-y-2">
+        <ul className="mt-8 space-y-2">
           {bugs?.map((b) => (
-            <Link
+            <WorkItemRow
               key={b.id}
+              title={b.title}
+              subtitle={[
+                b.project_name,
+                b.severity,
+                b.priority,
+                b.due_date ? `due ${b.due_date}` : "",
+                b.assignees_detail?.length
+                  ? b.assignees_detail.map((u) => u.username).join(", ")
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              status={b.status}
+              priority={b.severity}
               to={`/bugs/${b.id}`}
-              className="flex items-center justify-between bg-white border rounded-xl px-5 py-4 hover:shadow-sm"
-            >
-              <div>
-                <p className="font-medium">{b.title}</p>
-                <p className="text-xs text-slate-500">
-                  {b.project_name}
-                  {b.priority ? ` · ${b.priority}` : ""}
-                  {b.due_date ? ` · due ${b.due_date}` : ""}
-                  {b.assignees_detail?.length
-                    ? ` · ${b.assignees_detail.map((u) => u.username).join(", ")}`
-                    : ""}
-                </p>
-              </div>
-              <StatusBadge status={b.status} />
-            </Link>
+              accentColor="bg-slate-600"
+              type="bug"
+            />
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </PageContainer>
   );
 }

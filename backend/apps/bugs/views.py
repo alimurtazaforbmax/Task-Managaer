@@ -22,7 +22,7 @@ from apps.core.serializers import (
     CommentSerializer,
     TimeEntrySerializer,
 )
-from apps.core.services import log_activity, notify_status_change, notify_user
+from apps.core.services import log_activity, notify_status_change, notify_user, record_audit_log
 from apps.core.utils import validate_file_size, validate_mime_type
 
 
@@ -92,6 +92,13 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 message=f"You were assigned bug: {bug.title}",
                 link=f"/bugs/{bug.id}",
             )
+        record_audit_log(
+            actor=self.request.user,
+            action="created",
+            entity_type="bug",
+            entity_id=bug.id,
+            entity_label=bug.title,
+        )
 
     def update(self, request, *args, **kwargs):
         bug = self.get_object()
@@ -104,6 +111,13 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(bug, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="bug",
+            entity_id=bug.id,
+            entity_label=bug.title,
+        )
         return success_response(
             data=BugSerializer(
                 Bug.objects.prefetch_related("assignees").get(pk=bug.pk),
@@ -119,6 +133,13 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 "Only the bug owner can delete this bug.",
                 status=status.HTTP_403_FORBIDDEN,
             )
+        record_audit_log(
+            actor=request.user,
+            action="deleted",
+            entity_type="bug",
+            entity_id=bug.id,
+            entity_label=bug.title,
+        )
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"], url_path="status")

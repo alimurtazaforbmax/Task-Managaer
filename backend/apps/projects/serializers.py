@@ -1,8 +1,20 @@
 from django.db import transaction
 from rest_framework import serializers
 
+from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
 from apps.projects.models import Project, ProjectDocument, ProjectMember, ProjectMemberRole
+
+
+def project_role_for_user(user: User) -> str:
+    mapping = {
+        "admin": ProjectMemberRole.PM,
+        "project_manager": ProjectMemberRole.PM,
+        "developer": ProjectMemberRole.DEVELOPER,
+        "qa": ProjectMemberRole.QA,
+        "viewer": ProjectMemberRole.VIEWER,
+    }
+    return mapping.get(user.role, ProjectMemberRole.DEVELOPER)
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -85,13 +97,18 @@ class ProjectWriteSerializer(serializers.ModelSerializer):
         project.members.filter(user_id__in=current_ids - desired_ids).delete()
 
         for user_id in member_ids:
-            defaults = {"role": ProjectMemberRole.DEVELOPER}
+            try:
+                user = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                continue
             if creator and user_id == creator.id:
-                defaults = {"role": ProjectMemberRole.PM}
-            ProjectMember.objects.get_or_create(
+                role = ProjectMemberRole.PM
+            else:
+                role = project_role_for_user(user)
+            ProjectMember.objects.update_or_create(
                 project=project,
                 user_id=user_id,
-                defaults=defaults,
+                defaults={"role": role},
             )
 
     @transaction.atomic

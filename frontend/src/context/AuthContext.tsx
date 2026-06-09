@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import api, { unwrap } from "../api/client";
+import { unsubscribePushNotifications } from "../utils/pushNotifications";
 import type { ApiResponse, User } from "../types";
 
 interface AuthContextValue {
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    void unsubscribePushNotifications();
     localStorage.clear();
     setUser(null);
   };

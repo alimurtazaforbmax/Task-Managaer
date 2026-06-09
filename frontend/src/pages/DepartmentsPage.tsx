@@ -1,15 +1,16 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import DepartmentCard from "../components/DepartmentCard";
 import { useAuth } from "../context/AuthContext";
 import type { ApiResponse, Department, Paginated } from "../types";
 
-const PERM_LABELS: { key: keyof Department; label: string }[] = [
-  { key: "can_create_tasks", label: "Create tasks" },
-  { key: "can_create_bugs", label: "Create bugs" },
-  { key: "can_edit_tasks", label: "Edit tasks" },
-  { key: "can_edit_bugs", label: "Edit bugs" },
+const PERM_LABELS: { key: keyof Department; label: string; desc: string }[] = [
+  { key: "can_create_tasks", label: "Create tasks", desc: "Allow creating new tasks" },
+  { key: "can_create_bugs", label: "Create bugs", desc: "Allow reporting bugs" },
+  { key: "can_edit_tasks", label: "Edit tasks", desc: "Allow editing task details" },
+  { key: "can_edit_bugs", label: "Edit bugs", desc: "Allow editing bug details" },
 ];
 
 const emptyForm = {
@@ -23,13 +24,12 @@ const emptyForm = {
 
 export default function DepartmentsPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Department | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
-
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
 
   const { data: departments, isLoading } = useQuery({
     queryKey: ["departments"],
@@ -77,6 +77,7 @@ export default function DepartmentsPage() {
   const startEdit = (dept: Department) => {
     setEditing(dept);
     setShowForm(true);
+    setError("");
     setForm({
       name: dept.name,
       description: dept.description,
@@ -87,13 +88,21 @@ export default function DepartmentsPage() {
     });
   };
 
+  useEffect(() => {
+    const editDepartment = (location.state as { editDepartment?: Department } | null)
+      ?.editDepartment;
+    if (editDepartment) startEdit(editDepartment);
+  }, [location.state]);
+
+  if (user?.role !== "admin") return <Navigate to="/" replace />;
+
   return (
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Departments</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Departments</h1>
           <p className="text-slate-500 mt-1">
-            Manage departments and their permissions. Users inherit permissions from their department.
+            Organize teams and control what members can create or edit.
           </p>
         </div>
         <button
@@ -101,7 +110,7 @@ export default function DepartmentsPage() {
             resetForm();
             setShowForm(true);
           }}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
         >
           New department
         </button>
@@ -113,41 +122,81 @@ export default function DepartmentsPage() {
             e.preventDefault();
             saveDepartment.mutate();
           }}
-          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+          className="mt-6 bg-white border border-slate-200 rounded-2xl p-6 space-y-5 shadow-sm"
         >
-          <h2 className="font-semibold">{editing ? "Edit department" : "Create department"}</h2>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <input
-            required
-            placeholder="Department name"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <textarea
-            placeholder="Description"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-          <div className="border rounded-lg p-4 space-y-2">
-            <p className="text-sm font-medium text-slate-700">Permissions</p>
-            {PERM_LABELS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={Boolean(form[key])}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
-                />
-                {label}
-              </label>
-            ))}
+          <div>
+            <h2 className="font-semibold text-slate-900">
+              {editing ? "Edit department" : "Create department"}
+            </h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Users inherit permissions from their assigned department.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+          {error && <p className="text-sm text-rose-600">{error}</p>}
+
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Name</span>
+              <input
+                required
+                placeholder="e.g. Engineering"
+                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Description</span>
+              <textarea
+                placeholder="What this department is responsible for"
+                rows={3}
+                className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </label>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-800">Permissions</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PERM_LABELS.map(({ key, label, desc }) => (
+                <label
+                  key={key}
+                  className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition ${
+                    form[key]
+                      ? "border-brand-200 bg-brand-50/60"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={Boolean(form[key])}
+                    onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-800">{label}</span>
+                    <span className="block text-xs text-slate-500 mt-0.5">{desc}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="submit"
+              disabled={saveDepartment.isPending}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
+            >
               {editing ? "Save changes" : "Create department"}
             </button>
-            <button type="button" onClick={resetForm} className="border px-4 py-2 rounded-lg text-sm">
+            <button
+              type="button"
+              onClick={resetForm}
+              className="border border-slate-200 px-4 py-2 rounded-lg text-sm"
+            >
               Cancel
             </button>
           </div>
@@ -155,43 +204,18 @@ export default function DepartmentsPage() {
       )}
 
       {isLoading ? (
-        <p className="mt-8 text-slate-400">Loading...</p>
+        <p className="mt-8 text-slate-400">Loading departments…</p>
+      ) : !departments?.length ? (
+        <p className="mt-8 text-slate-400">No departments yet. Create one to get started.</p>
       ) : (
-        <div className="mt-8 space-y-3">
-          {departments?.map((d) => (
-            <div key={d.id} className="bg-white border rounded-xl p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="font-semibold text-lg">{d.name}</h2>
-                  <p className="text-sm text-slate-500 mt-1">{d.description || "No description"}</p>
-                  <p className="text-xs text-slate-400 mt-2">{d.member_count ?? 0} members</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => startEdit(d)}
-                    className="text-sm text-brand-600 hover:underline"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => deleteDepartment.mutate(d.id)}
-                    className="text-sm text-rose-600 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {PERM_LABELS.filter(({ key }) => d[key]).map(({ key, label }) => (
-                  <span
-                    key={key}
-                    className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded"
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {departments.map((d) => (
+            <DepartmentCard
+              key={d.id}
+              department={d}
+              onEdit={startEdit}
+              onDelete={(id) => deleteDepartment.mutate(id)}
+            />
           ))}
         </div>
       )}

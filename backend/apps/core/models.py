@@ -176,3 +176,41 @@ class Notification(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class AuditLog(models.Model):
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="audit_logs",
+    )
+    action = models.CharField(max_length=64)
+    entity_type = models.CharField(max_length=64)
+    entity_id = models.PositiveIntegerField()
+    entity_label = models.CharField(max_length=255, blank=True)
+    detail = models.TextField(blank=True)
+    changes = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.action} {self.entity_type} #{self.entity_id}"
+
+
+class PushSubscription(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="push_subscriptions",
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]

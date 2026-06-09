@@ -1,27 +1,47 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import UserCard from "../components/UserCard";
+import UserPhotoUpload from "../components/UserPhotoUpload";
 import { useAuth } from "../context/AuthContext";
 import type { ApiResponse, Department, Paginated, User } from "../types";
 import { USER_ROLES } from "../types";
+import { formatRoleLabel } from "../utils/projectStyle";
+
+function FieldLabel({
+  children,
+  htmlFor,
+}: {
+  children: ReactNode;
+  htmlFor?: string;
+}) {
+  return (
+    <span className="text-sm font-medium text-slate-700" id={htmlFor}>
+      {children}
+    </span>
+  );
+}
 
 export default function UsersPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [form, setForm] = useState({
     username: "",
     email: "",
     password: "",
     first_name: "",
     last_name: "",
+    job_title: "",
     role: "developer",
     department: "" as string | number,
+    is_active: true,
   });
-
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
 
   const { data: departments } = useQuery({
     queryKey: ["departments"],
@@ -45,6 +65,11 @@ export default function UsersPage() {
     },
   });
 
+  const clearPhoto = () => {
+    setProfilePhoto(null);
+    setPhotoPreview(null);
+  };
+
   const resetForm = () => {
     setForm({
       username: "",
@@ -52,15 +77,52 @@ export default function UsersPage() {
       password: "",
       first_name: "",
       last_name: "",
+      job_title: "",
       role: "developer",
       department: "",
+      is_active: true,
     });
+    clearPhoto();
     setEditing(null);
     setShowForm(false);
   };
 
+  const buildCreateFormData = () => {
+    const fd = new FormData();
+    fd.append("username", form.username);
+    fd.append("email", form.email);
+    fd.append("password", form.password);
+    fd.append("first_name", form.first_name);
+    fd.append("last_name", form.last_name);
+    fd.append("job_title", form.job_title);
+    fd.append("role", form.role);
+    if (form.department) fd.append("department", String(form.department));
+    if (profilePhoto) fd.append("profile_picture", profilePhoto);
+    return fd;
+  };
+
+  const buildUpdateFormData = () => {
+    const fd = new FormData();
+    fd.append("email", form.email);
+    fd.append("first_name", form.first_name);
+    fd.append("last_name", form.last_name);
+    fd.append("job_title", form.job_title);
+    fd.append("role", form.role);
+    fd.append("is_active", String(form.is_active));
+    if (form.department) fd.append("department", String(form.department));
+    if (form.password) fd.append("password", form.password);
+    if (profilePhoto) fd.append("profile_picture", profilePhoto);
+    return fd;
+  };
+
   const createUser = useMutation({
     mutationFn: async () => {
+      if (profilePhoto) {
+        const res = await api.post<ApiResponse<User>>("/auth/users/", buildCreateFormData(), {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        return unwrap(res);
+      }
       const payload = {
         ...form,
         department: form.department ? Number(form.department) : null,
@@ -77,11 +139,23 @@ export default function UsersPage() {
   const updateUser = useMutation({
     mutationFn: async () => {
       if (!editing) return;
+
+      if (profilePhoto) {
+        const res = await api.patch<ApiResponse<User>>(
+          `/auth/users/${editing.id}/`,
+          buildUpdateFormData(),
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
+        return unwrap(res);
+      }
+
       const payload: Record<string, unknown> = {
         email: form.email,
         first_name: form.first_name,
         last_name: form.last_name,
+        job_title: form.job_title,
         role: form.role,
+        is_active: form.is_active,
         department: form.department ? Number(form.department) : null,
       };
       if (form.password) payload.password = form.password;
@@ -100,30 +174,43 @@ export default function UsersPage() {
   const startEdit = (u: User) => {
     setEditing(u);
     setShowForm(true);
+    clearPhoto();
     setForm({
       username: u.username,
       email: u.email,
       password: "",
       first_name: u.first_name,
       last_name: u.last_name,
+      job_title: u.job_title ?? "",
       role: u.role,
       department: u.department ?? "",
+      is_active: u.is_active !== false,
     });
   };
+
+  useEffect(() => {
+    const editUser = (location.state as { editUser?: User } | null)?.editUser;
+    if (editUser) startEdit(editUser);
+  }, [location.state]);
+
+  const previewName =
+    [form.first_name, form.last_name].filter(Boolean).join(" ") || form.username || "User";
+
+  if (user?.role !== "admin") return <Navigate to="/" replace />;
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-slate-500 mt-1">Manage accounts and permissions</p>
+          <h1 className="text-2xl font-bold text-slate-900">Users</h1>
+          <p className="text-slate-500 mt-1">Team profiles, roles, and account settings</p>
         </div>
         <button
           onClick={() => {
             resetForm();
             setShowForm(true);
           }}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
         >
           New user
         </button>
@@ -136,131 +223,174 @@ export default function UsersPage() {
             if (editing) updateUser.mutate();
             else createUser.mutate();
           }}
-          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+          className="mt-6 bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
         >
-          <h2 className="font-semibold">{editing ? "Edit user" : "Create user"}</h2>
-          {!editing && (
-            <input
-              required
-              placeholder="Username"
-              className="w-full border rounded-lg px-3 py-2"
-              value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })}
+          <div className="h-1 bg-gradient-to-r from-brand-500 to-indigo-500" />
+          <div className="p-6 space-y-6">
+            <div>
+              <h2 className="font-semibold text-slate-900 text-lg">
+                {editing ? "Edit profile" : "Create user"}
+              </h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {editing
+                  ? "Update account details and profile photo."
+                  : "Set up a new team member with role, department, and optional photo."}
+              </p>
+            </div>
+
+            <UserPhotoUpload
+              name={previewName}
+              photoUrl={editing?.profile_picture_url}
+              previewUrl={photoPreview}
+              seed={editing?.id ?? (form.username || "new")}
+              hasExistingPhoto={Boolean(editing?.profile_picture_url)}
+              onSelect={(file) => {
+                setProfilePhoto(file);
+                setPhotoPreview(URL.createObjectURL(file));
+              }}
+              onClear={clearPhoto}
             />
-          )}
-          <input
-            required
-            type="email"
-            placeholder="Email"
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-          <input
-            type="password"
-            placeholder={editing ? "New password (optional)" : "Password"}
-            required={!editing}
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              placeholder="First name"
-              className="border rounded-lg px-3 py-2"
-              value={form.first_name}
-              onChange={(e) => setForm({ ...form, first_name: e.target.value })}
-            />
-            <input
-              placeholder="Last name"
-              className="border rounded-lg px-3 py-2"
-              value={form.last_name}
-              onChange={(e) => setForm({ ...form, last_name: e.target.value })}
-            />
-          </div>
-          <select
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value })}
-          >
-            {USER_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
-          <select
-            className="w-full border rounded-lg px-3 py-2"
-            value={form.department}
-            onChange={(e) => setForm({ ...form, department: e.target.value })}
-          >
-            <option value="">No department</option>
-            {departments?.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
-              {editing ? "Save changes" : "Create user"}
-            </button>
-            <button
-              type="button"
-              onClick={resetForm}
-              className="border px-4 py-2 rounded-lg text-sm"
-            >
-              Cancel
-            </button>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Account
+                </h3>
+                {!editing && (
+                  <label className="block space-y-1">
+                    <FieldLabel>Username</FieldLabel>
+                    <input
+                      required
+                      placeholder="jane.doe"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                      value={form.username}
+                      onChange={(e) => setForm({ ...form, username: e.target.value })}
+                    />
+                  </label>
+                )}
+                <label className="block space-y-1">
+                  <FieldLabel>Email</FieldLabel>
+                  <input
+                    required
+                    type="email"
+                    placeholder="jane@company.com"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <FieldLabel>{editing ? "New password (optional)" : "Password"}</FieldLabel>
+                  <input
+                    type="password"
+                    required={!editing}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                </label>
+              </section>
+
+              <section className="space-y-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Profile & role
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block space-y-1">
+                    <FieldLabel>First name</FieldLabel>
+                    <input
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                      value={form.first_name}
+                      onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <FieldLabel>Last name</FieldLabel>
+                    <input
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                      value={form.last_name}
+                      onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <label className="block space-y-1">
+                  <FieldLabel>Job title</FieldLabel>
+                  <input
+                    placeholder="e.g. Senior Developer"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                    value={form.job_title}
+                    onChange={(e) => setForm({ ...form, job_title: e.target.value })}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <FieldLabel>Role</FieldLabel>
+                  <select
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  >
+                    {USER_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {formatRoleLabel(r)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-1">
+                  <FieldLabel>Department</FieldLabel>
+                  <select
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                    value={form.department}
+                    onChange={(e) => setForm({ ...form, department: e.target.value })}
+                  >
+                    <option value="">No department</option>
+                    {departments?.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {editing && (
+                  <label className="flex items-center gap-2 text-sm text-slate-700 pt-1">
+                    <input
+                      type="checkbox"
+                      checked={form.is_active}
+                      onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                    />
+                    Account active
+                  </label>
+                )}
+              </section>
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="submit"
+                disabled={createUser.isPending || updateUser.isPending}
+                className="bg-brand-600 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {editing ? "Save changes" : "Create user"}
+              </button>
+              <button
+                type="button"
+                onClick={resetForm}
+                className="border border-slate-200 px-5 py-2 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </form>
       )}
 
       {isLoading ? (
-        <p className="mt-8 text-slate-400">Loading...</p>
+        <p className="mt-8 text-slate-400">Loading profiles…</p>
       ) : (
-        <div className="mt-8 bg-white border rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr>
-                <th className="text-left p-3">User</th>
-                <th className="text-left p-3">Email</th>
-                <th className="text-left p-3">Role</th>
-                <th className="text-left p-3">Department</th>
-                <th className="text-left p-3">Status</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users?.map((u) => (
-                <tr key={u.id} className="border-b last:border-0">
-                  <td className="p-3 font-medium">{u.username}</td>
-                  <td className="p-3 text-slate-600">{u.email}</td>
-                  <td className="p-3 capitalize">{u.role.replace(/_/g, " ")}</td>
-                  <td className="p-3 text-slate-600">{u.department_name || "—"}</td>
-                  <td className="p-3">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded ${
-                        u.is_active !== false
-                          ? "bg-green-100 text-green-800"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {u.is_active !== false ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      onClick={() => startEdit(u)}
-                      className="text-brand-600 hover:underline text-sm"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {users?.map((u) => (
+            <UserCard key={u.id} user={u} onEdit={startEdit} />
+          ))}
         </div>
       )}
     </div>

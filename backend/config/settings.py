@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.projects",
     "apps.tasks",
     "apps.bugs",
+    "apps.tickets",
     "apps.core",
 ]
 
@@ -166,6 +167,17 @@ ALLOWED_DOCUMENT_TYPES = [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
 ]
+
+VAPID_PUBLIC_KEY = config(
+    "VAPID_PUBLIC_KEY",
+    default="BJALfx-wmL_5O9SFRsYaQbbbdwDdcnf6rjyQu6cPmbzPRJ5FT7uvmnmacJvo2GJ-ZDKlY7xBiS62wSPZyXCyO5w",
+)
+_vapid_key_path = BASE_DIR / "config" / "vapid_private.pem"
+if _vapid_key_path.exists():
+    VAPID_PRIVATE_KEY = _vapid_key_path.read_text(encoding="utf-8")
+else:
+    VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+VAPID_ADMIN_EMAIL = config("VAPID_ADMIN_EMAIL", default="mailto:admin@taskmanager.local")
 
 if USE_S3:
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"

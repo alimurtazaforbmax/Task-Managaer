@@ -1,8 +1,10 @@
+from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
 from apps.accounts.models import Department, User
 from apps.accounts.permissions_util import get_department_permissions
+from apps.core.utils import validate_file_size, validate_mime_type
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -27,6 +29,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True)
     permissions = serializers.SerializerMethodField()
+    profile_picture_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -41,13 +44,29 @@ class UserSerializer(serializers.ModelSerializer):
             "department_name",
             "permissions",
             "job_title",
+            "profile_picture",
+            "profile_picture_url",
             "is_active",
             "date_joined",
         )
-        read_only_fields = ("id", "date_joined", "department_name", "permissions")
+        read_only_fields = (
+            "id",
+            "date_joined",
+            "department_name",
+            "permissions",
+            "profile_picture_url",
+        )
 
     def get_permissions(self, obj) -> dict[str, bool]:
         return get_department_permissions(obj)
+
+    def get_profile_picture_url(self, obj) -> str | None:
+        if not obj.profile_picture:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return obj.profile_picture.url
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -64,6 +83,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "job_title",
             "is_active",
             "password",
+            "profile_picture",
         )
 
     def validate_password(self, value):
@@ -71,8 +91,21 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             validate_password(value)
         return value
 
+    def validate_profile_picture(self, value):
+        if not value:
+            return value
+        try:
+            validate_file_size(value, settings.MAX_IMAGE_SIZE_MB)
+            validate_mime_type(value, settings.ALLOWED_IMAGE_TYPES)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+        return value
+
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        new_picture = validated_data.get("profile_picture")
+        if new_picture and instance.profile_picture:
+            instance.profile_picture.delete(save=False)
         for attr, val in validated_data.items():
             setattr(instance, attr, val)
         if password:
@@ -95,10 +128,21 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "role",
             "department",
             "job_title",
+            "profile_picture",
         )
 
     def validate_password(self, value):
         validate_password(value)
+        return value
+
+    def validate_profile_picture(self, value):
+        if not value:
+            return value
+        try:
+            validate_file_size(value, settings.MAX_IMAGE_SIZE_MB)
+            validate_mime_type(value, settings.ALLOWED_IMAGE_TYPES)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
         return value
 
     def create(self, validated_data):

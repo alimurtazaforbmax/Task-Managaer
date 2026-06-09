@@ -1,32 +1,47 @@
 import { Link, NavLink, Outlet } from "react-router-dom";
+import SidebarUserPanel from "./SidebarUserPanel";
+import ToastContainer from "./ToastContainer";
 import { useAuth } from "../context/AuthContext";
+import { formatRoleLabel } from "../utils/projectStyle";
+import { useMarkNotificationFromUrl } from "../hooks/useMarkNotificationFromUrl";
+import { useNotificationWatcher } from "../hooks/useNotificationWatcher";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 const baseNav = [
   { to: "/", label: "Dashboard" },
   { to: "/projects", label: "Projects" },
   { to: "/tasks", label: "Tasks" },
   { to: "/bugs", label: "Bugs" },
+  { to: "/tickets", label: "Tickets" },
 ];
 
 export default function Layout() {
   const { user, logout } = useAuth();
 
+  usePushNotifications(!!user);
+  useNotificationWatcher(!!user);
+  useMarkNotificationFromUrl(!!user);
+
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col">
+    <div className="min-h-screen flex flex-col md:flex-row">
+      <ToastContainer />
+      <aside className="w-full md:w-64 shrink-0 bg-slate-900 text-white flex flex-col md:min-h-screen">
         <div className="p-6 border-b border-slate-700">
           <Link to="/" className="text-xl font-bold tracking-tight">
             Task Manager
           </Link>
-          <p className="text-slate-400 text-sm mt-1 capitalize">{user?.role}</p>
+          {user && (
+            <p className="text-slate-400 text-sm mt-1">{formatRoleLabel(user.role)}</p>
+          )}
         </div>
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 hidden md:block">
           {[
             ...baseNav,
             ...(user?.role === "admin"
               ? [
                   { to: "/departments", label: "Departments" },
                   { to: "/users", label: "Users" },
+                  { to: "/admin/logs", label: "Logs" },
                 ]
               : []),
           ].map((item) => (
@@ -46,21 +61,38 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-700">
-          <p className="text-sm text-slate-300 truncate">
-            {user?.first_name || user?.username}
-          </p>
-          <button
-            onClick={logout}
-            className="mt-2 text-sm text-slate-400 hover:text-white"
-          >
-            Sign out
-          </button>
-        </div>
+        {user && <div className="hidden md:block"><SidebarUserPanel user={user} onLogout={logout} /></div>}
       </aside>
-      <main className="flex-1 p-8 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        <nav className="md:hidden flex gap-1 overflow-x-auto px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
+          {[
+            ...baseNav,
+            ...(user?.role === "admin"
+              ? [
+                  { to: "/departments", label: "Depts" },
+                  { to: "/users", label: "Users" },
+                  { to: "/admin/logs", label: "Logs" },
+                ]
+              : []),
+          ].map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === "/"}
+              className={({ isActive }) =>
+                `shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  isActive ? "bg-brand-600 text-white" : "text-slate-300"
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto w-full">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

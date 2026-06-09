@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -10,7 +11,12 @@ import TaskDetailPage from "./pages/TaskDetailPage";
 import BugsPage from "./pages/BugsPage";
 import BugDetailPage from "./pages/BugDetailPage";
 import UsersPage from "./pages/UsersPage";
+import UserDetailPage from "./pages/UserDetailPage";
 import DepartmentsPage from "./pages/DepartmentsPage";
+import DepartmentDetailPage from "./pages/DepartmentDetailPage";
+import TicketsPage from "./pages/TicketsPage";
+import TicketDetailPage from "./pages/TicketDetailPage";
+import AdminLogsPage from "./pages/AdminLogsPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -43,8 +49,13 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<TaskDetailPage />} />
         <Route path="bugs" element={<BugsPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
+        <Route path="tickets" element={<TicketsPage />} />
+        <Route path="tickets/:id" element={<TicketDetailPage />} />
+        <Route path="admin/logs" element={<AdminLogsPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
+        <Route path="departments/:id" element={<DepartmentDetailPage />} />
         <Route path="users" element={<UsersPage />} />
+        <Route path="users/:id" element={<UserDetailPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -55,7 +66,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

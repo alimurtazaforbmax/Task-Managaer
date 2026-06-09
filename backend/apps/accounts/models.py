@@ -1,6 +1,12 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from apps.core.utils import unique_upload_path
+
+
+def user_profile_upload_to(instance, filename):
+    return unique_upload_path(f"profiles/{instance.pk or 'new'}", filename)
+
 
 class UserRole(models.TextChoices):
     ADMIN = "admin", "Admin"
@@ -40,6 +46,11 @@ class User(AbstractUser):
         related_name="members",
     )
     job_title = models.CharField(max_length=128, blank=True)
+    profile_picture = models.ImageField(
+        upload_to=user_profile_upload_to,
+        blank=True,
+        null=True,
+    )
 
     class Meta:
         ordering = ["username"]

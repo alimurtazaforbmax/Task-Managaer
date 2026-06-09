@@ -1,10 +1,17 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import BackLink from "../components/BackLink";
+import PageContainer from "../components/PageContainer";
+import ReportModal from "../components/ReportModal";
+import MemberRow from "../components/MemberRow";
+import ProjectDocumentsSection from "../components/ProjectDocumentsSection";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
+import StatChip from "../components/StatChip";
 import StatusBadge from "../components/StatusBadge";
+import WorkItemRow from "../components/WorkItemRow";
+import { getProjectInitials, getProjectPalette } from "../utils/projectStyle";
 import {
   BugCreateForm,
   emptyBugForm,
@@ -14,6 +21,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
+import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import type { ApiResponse, Bug, Project, Task } from "../types";
 
 export default function ProjectDetailPage() {
@@ -26,6 +34,7 @@ export default function ProjectDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showBugForm, setShowBugForm] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [bugForm, setBugForm] = useState(emptyBugForm);
   const [editForm, setEditForm] = useState({
@@ -93,14 +102,18 @@ export default function ProjectDetailPage() {
   });
 
   const createTask = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (attachments: File[]) => {
       const res = await api.post<ApiResponse<Task>>("/tasks/", {
         ...taskForm,
         project: Number(id),
         status: "backlog",
         due_date: taskForm.due_date || null,
       });
-      return unwrap(res);
+      const task = unwrap(res);
+      if (attachments.length) {
+        await uploadWorkItemAttachments("tasks", task.id, attachments);
+      }
+      return task;
     },
     onSuccess: () => {
       setShowTaskForm(false);
@@ -111,14 +124,18 @@ export default function ProjectDetailPage() {
   });
 
   const createBug = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (attachments: File[]) => {
       const res = await api.post<ApiResponse<Bug>>("/bugs/", {
         ...bugForm,
         project: Number(id),
         status: "open",
         due_date: bugForm.due_date || null,
       });
-      return unwrap(res);
+      const bug = unwrap(res);
+      if (attachments.length) {
+        await uploadWorkItemAttachments("bugs", bug.id, attachments);
+      }
+      return bug;
     },
     onSuccess: () => {
       setShowBugForm(false);
@@ -130,41 +147,85 @@ export default function ProjectDetailPage() {
 
   if (!project) return <p className="text-slate-400">Loading...</p>;
 
+  const palette = getProjectPalette(project.id);
+
   return (
-    <div>
+    <PageContainer>
+      {showReport && id && (
+        <ReportModal
+          url={`/projects/${id}/report/`}
+          filename={`project-report-${project.code}.pdf`}
+          onClose={() => setShowReport(false)}
+        />
+      )}
       <BackLink to="/projects" label="Projects" />
-      <div className="flex items-center justify-between mt-2">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">{project.name}</h1>
-          <StatusBadge status={project.status} />
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className={`h-1 bg-gradient-to-r ${palette.gradient} opacity-70`} />
+        <div className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm ${palette.gradient}`}
+              >
+                {getProjectInitials(project.name)}
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold text-slate-900">{project.name}</h1>
+                  <StatusBadge status={project.status} />
+                </div>
+                <p className="text-slate-500 font-mono text-sm mt-1">{project.code}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowReport(true)}
+                className="text-sm border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-slate-700"
+              >
+                Progress report
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowEdit(!showEdit)}
+                  className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50 shadow-sm"
+                >
+                  Edit project
+                </button>
+              )}
+            </div>
+          </div>
+
+          <p className="mt-4 text-slate-700 leading-relaxed">
+            {project.description || "No description yet."}
+          </p>
+
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <StatChip label="Tasks" value={project.task_count ?? tasks?.length ?? 0} tone="tasks" />
+            <StatChip label="Bugs" value={project.bug_count ?? bugs?.length ?? 0} tone="bugs" />
+            <StatChip
+              label="Members"
+              value={project.member_count ?? project.members?.length ?? 0}
+              tone="members"
+            />
+          </div>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setShowEdit(!showEdit)}
-            className="text-sm border px-3 py-1.5 rounded-lg hover:bg-slate-50"
-          >
-            Edit project
-          </button>
-        )}
       </div>
-      <p className="text-slate-500">{project.code}</p>
-      <p className="mt-4 text-slate-700">{project.description}</p>
 
       {project.members && project.members.length > 0 && (
-        <section className="mt-6 bg-white border rounded-xl p-5">
-          <h2 className="font-semibold">Members</h2>
+        <section className="mt-8">
+          <h2 className="font-semibold text-lg text-slate-900">Team members</h2>
           <ul className="mt-3 space-y-2">
             {project.members.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-sm">
-                <span>
-                  {m.user_detail?.first_name || m.user_detail?.username || `User #${m.user}`}
-                </span>
-                <span className="text-slate-500 capitalize">{m.role.replace(/_/g, " ")}</span>
-              </li>
+              <MemberRow key={m.id} member={m} />
             ))}
           </ul>
         </section>
       )}
+
+      <ProjectDocumentsSection projectId={String(id)} />
 
       {showEdit && isAdmin && (
         <form
@@ -214,7 +275,7 @@ export default function ProjectDetailPage() {
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Tasks</h2>
+          <h2 className="font-semibold text-lg text-slate-900">Tasks</h2>
           {permissions.can_create_tasks && (
             <button
               onClick={() => {
@@ -228,39 +289,35 @@ export default function ProjectDetailPage() {
           )}
         </div>
         {showTaskForm && permissions.can_create_tasks && (
-          <div className="mt-4 bg-white border rounded-xl p-5">
+          <div className="mt-4">
             <TaskCreateForm
               form={taskForm}
               users={users ?? []}
               onChange={setTaskForm}
-              onSubmit={() => createTask.mutate()}
+              onSubmit={(files) => createTask.mutate(files)}
+              isSubmitting={createTask.isPending}
             />
           </div>
         )}
         <ul className="mt-3 space-y-2">
           {tasks?.map((t) => (
-            <li key={t.id}>
-              <Link
-                to={`/tasks/${t.id}`}
-                className="flex items-center justify-between bg-white border rounded-lg px-4 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <span>{t.title}</span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {t.priority}
-                    {t.due_date ? ` · due ${t.due_date}` : ""}
-                  </p>
-                </div>
-                <StatusBadge status={t.status} />
-              </Link>
-            </li>
+            <WorkItemRow
+              key={t.id}
+              title={t.title}
+              subtitle={[t.priority, t.due_date ? `due ${t.due_date}` : ""].filter(Boolean).join(" · ")}
+              status={t.status}
+              priority={t.priority}
+              to={`/tasks/${t.id}`}
+              accentColor="bg-slate-400"
+              type="task"
+            />
           ))}
         </ul>
       </section>
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-lg">Bugs</h2>
+          <h2 className="font-semibold text-lg text-slate-900">Bugs</h2>
           {permissions.can_create_bugs && (
             <button
               onClick={() => {
@@ -274,35 +331,31 @@ export default function ProjectDetailPage() {
           )}
         </div>
         {showBugForm && permissions.can_create_bugs && (
-          <div className="mt-4 bg-white border rounded-xl p-5">
+          <div className="mt-4">
             <BugCreateForm
               form={bugForm}
               users={users ?? []}
               onChange={setBugForm}
-              onSubmit={() => createBug.mutate()}
+              onSubmit={(files) => createBug.mutate(files)}
+              isSubmitting={createBug.isPending}
             />
           </div>
         )}
         <ul className="mt-3 space-y-2">
           {bugs?.map((b) => (
-            <li key={b.id}>
-              <Link
-                to={`/bugs/${b.id}`}
-                className="flex items-center justify-between bg-white border rounded-lg px-4 py-3 hover:bg-slate-50"
-              >
-                <div>
-                  <span>{b.title}</span>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {b.severity} · {b.priority}
-                    {b.due_date ? ` · due ${b.due_date}` : ""}
-                  </p>
-                </div>
-                <StatusBadge status={b.status} />
-              </Link>
-            </li>
+            <WorkItemRow
+              key={b.id}
+              title={b.title}
+              subtitle={[b.severity, b.priority, b.due_date ? `due ${b.due_date}` : ""].filter(Boolean).join(" · ")}
+              status={b.status}
+              priority={b.severity}
+              to={`/bugs/${b.id}`}
+              accentColor="bg-slate-500"
+              type="bug"
+            />
           ))}
         </ul>
       </section>
-    </div>
+    </PageContainer>
   );
 }

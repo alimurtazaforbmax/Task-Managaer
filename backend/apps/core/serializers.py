@@ -1,7 +1,14 @@
 from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
-from apps.core.models import ActivityLog, Attachment, Comment, Notification, TimeEntry
+from apps.core.models import (
+    ActivityLog,
+    Attachment,
+    AuditLog,
+    Comment,
+    Notification,
+    TimeEntry,
+)
 
 
 class CommentSerializer(serializers.ModelSerializer):
@@ -89,8 +96,42 @@ class ActivityLogSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor_detail = UserSerializer(source="actor", read_only=True)
+
+    class Meta:
+        model = AuditLog
+        fields = (
+            "id",
+            "actor",
+            "actor_detail",
+            "action",
+            "entity_type",
+            "entity_id",
+            "entity_label",
+            "detail",
+            "changes",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ("id", "title", "message", "link", "is_read", "created_at")
         read_only_fields = ("id", "title", "message", "link", "created_at")
+
+
+class PushSubscribeSerializer(serializers.Serializer):
+    endpoint = serializers.CharField()
+    keys = serializers.DictField(child=serializers.CharField())
+
+    def validate_keys(self, value):
+        if "p256dh" not in value or "auth" not in value:
+            raise serializers.ValidationError("keys must include p256dh and auth.")
+        return value
+
+
+class PushUnsubscribeSerializer(serializers.Serializer):
+    endpoint = serializers.CharField()

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import api, { unwrap } from "../api/client";
-import StatusBadge from "../components/StatusBadge";
-import { BugCreateForm, emptyBugForm, emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
+import PageContainer from "../components/PageContainer";
+import WorkItemRow from "../components/WorkItemRow";
+import { emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
 import { useUsers } from "../hooks/useUsers";
-import type { ApiResponse, Bug, Paginated, Project, Task } from "../types";
+import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
+import type { ApiResponse, Paginated, Project, Task } from "../types";
 
 export default function TasksPage() {
   const permissions = usePermissions();
@@ -35,14 +36,18 @@ export default function TasksPage() {
   });
 
   const createTask = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (attachments: File[]) => {
       const res = await api.post<ApiResponse<Task>>("/tasks/", {
         ...form,
         project: Number(projectId),
         status: "backlog",
         due_date: form.due_date || null,
       });
-      return unwrap(res);
+      const task = unwrap(res);
+      if (attachments.length) {
+        await uploadWorkItemAttachments("tasks", task.id, attachments);
+      }
+      return task;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -54,16 +59,16 @@ export default function TasksPage() {
   });
 
   return (
-    <div>
+    <PageContainer>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Tasks</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Tasks</h1>
           <p className="text-slate-500 mt-1">Development work items</p>
         </div>
         {permissions.can_create_tasks && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700"
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
           >
             New task
           </button>
@@ -71,12 +76,13 @@ export default function TasksPage() {
       </div>
 
       {showForm && (
-        <div className="mt-6 bg-white border rounded-xl p-5">
+        <div className="mt-6">
           <TaskCreateForm
             form={form}
             users={users ?? []}
             onChange={setForm}
-            onSubmit={() => createTask.mutate()}
+            onSubmit={(files) => createTask.mutate(files)}
+            isSubmitting={createTask.isPending}
             showProjectSelect
             projects={projects}
             projectId={projectId}
@@ -88,29 +94,30 @@ export default function TasksPage() {
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading...</p>
       ) : (
-        <div className="mt-8 space-y-2">
+        <ul className="mt-8 space-y-2">
           {tasks?.map((t) => (
-            <Link
+            <WorkItemRow
               key={t.id}
+              title={t.title}
+              subtitle={[
+                t.project_name,
+                t.priority,
+                t.due_date ? `due ${t.due_date}` : "",
+                t.assignees_detail?.length
+                  ? t.assignees_detail.map((u) => u.username).join(", ")
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              status={t.status}
+              priority={t.priority}
               to={`/tasks/${t.id}`}
-              className="flex items-center justify-between bg-white border rounded-xl px-5 py-4 hover:shadow-sm"
-            >
-              <div>
-                <p className="font-medium">{t.title}</p>
-                <p className="text-xs text-slate-500">
-                  {t.project_name}
-                  {t.priority ? ` · ${t.priority}` : ""}
-                  {t.due_date ? ` · due ${t.due_date}` : ""}
-                  {t.assignees_detail?.length
-                    ? ` · ${t.assignees_detail.map((u) => u.username).join(", ")}`
-                    : ""}
-                </p>
-              </div>
-              <StatusBadge status={t.status} />
-            </Link>
+              accentColor="bg-brand-500"
+              type="task"
+            />
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </PageContainer>
   );
 }

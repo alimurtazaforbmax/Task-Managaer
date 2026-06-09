@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -6,8 +7,10 @@ from rest_framework.permissions import IsAuthenticated
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.permissions import IsAdmin
 from apps.core.responses import error_response, success_response
+from apps.core.services import record_audit_log
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.projects.models import Project, ProjectDocument, ProjectMember
+from apps.projects.project_report import build_project_report
 from apps.projects.serializers import (
     ProjectDetailSerializer,
     ProjectDocumentSerializer,
@@ -52,6 +55,13 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         project = serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="created",
+            entity_type="project",
+            entity_id=project.id,
+            entity_label=project.name,
+        )
         return success_response(
             data=ProjectDetailSerializer(project, context={"request": request}).data,
             message=self.create_message,
@@ -64,6 +74,13 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         project = serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="project",
+            entity_id=project.id,
+            entity_label=project.name,
+        )
         return success_response(
             data=ProjectDetailSerializer(project, context={"request": request}).data,
             message=self.update_message,
@@ -73,6 +90,13 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         project = self.get_object()
         project.status = "archived"
         project.save(update_fields=["status", "updated_at"])
+        record_audit_log(
+            actor=request.user,
+            action="archived",
+            entity_type="project",
+            entity_id=project.id,
+            entity_label=project.name,
+        )
         return success_response(message="Project archived.")
 
     @action(detail=True, methods=["get", "post"], url_path="members")
@@ -96,6 +120,28 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             message="Member added.",
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=["get"], url_path="report")
+    def report(self, request, pk=None):
+        project = self.get_object()
+        if request.query_params.get("export") == "pdf":
+            try:
+                from apps.projects.project_report import build_project_report_pdf
+
+                pdf_bytes = build_project_report_pdf(project, request)
+            except ModuleNotFoundError as exc:
+                if exc.name == "reportlab":
+                    return error_response(
+                        "PDF reports require reportlab. Install dependencies with: pip install -r requirements.txt",
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+                raise
+            response = HttpResponse(pdf_bytes, content_type="application/pdf")
+            response["Content-Disposition"] = (
+                f'attachment; filename="project-report-{project.code}.pdf"'
+            )
+            return response
+        return success_response(data=build_project_report(project, request))
 
     @action(detail=True, methods=["get", "post"], url_path="documents")
     def documents(self, request, pk=None):

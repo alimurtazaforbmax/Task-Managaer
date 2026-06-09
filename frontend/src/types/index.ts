@@ -22,7 +22,20 @@ export interface User {
   department_name?: string;
   permissions?: UserPermissions;
   job_title?: string;
+  profile_picture_url?: string | null;
   is_active?: boolean;
+}
+
+export interface ProjectDocument {
+  id: number;
+  project: number;
+  title: string;
+  file_url: string;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: number | null;
+  created_at: string;
 }
 
 export interface DepartmentPermissions {
@@ -41,6 +54,35 @@ export interface Department {
   can_edit_tasks?: boolean;
   can_edit_bugs?: boolean;
   member_count?: number;
+  created_at?: string;
+}
+
+export interface DepartmentPermissionItem {
+  key: string;
+  label: string;
+  enabled: boolean;
+}
+
+export interface DepartmentStats {
+  member_count: number;
+  active_members: number;
+  inactive_members: number;
+  department_tasks: number;
+  open_department_tasks: number;
+  department_bugs: number;
+  open_department_bugs: number;
+  member_open_tasks: number;
+  member_open_bugs: number;
+}
+
+export interface DepartmentSummary {
+  department: Department;
+  permissions: DepartmentPermissionItem[];
+  stats: DepartmentStats;
+  role_breakdown: Record<string, number>;
+  members: User[];
+  recent_tasks: Task[];
+  recent_bugs: Bug[];
 }
 
 export interface UserPermissions extends DepartmentPermissions {}
@@ -61,6 +103,8 @@ export interface Project {
   status: string;
   start_date?: string | null;
   end_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
   member_count?: number;
   task_count?: number;
   bug_count?: number;
@@ -89,6 +133,7 @@ export interface Task {
   comments?: Comment[];
   attachments?: Attachment[];
   time_entries?: { id: number; minutes: number; work_date: string }[];
+  updated_at?: string;
 }
 
 export interface Bug {
@@ -113,6 +158,48 @@ export interface Bug {
   due_date: string | null;
   comments?: Comment[];
   attachments?: Attachment[];
+  updated_at?: string;
+}
+
+export interface Ticket {
+  id: number;
+  title: string;
+  description: string;
+  request_type: "task" | "bug" | "issue" | "other";
+  status: "pending" | "approved" | "rejected";
+  project: number;
+  project_name?: string;
+  raised_by: number;
+  raised_by_detail?: User;
+  mentioned_user: number | null;
+  mentioned_user_detail?: User | null;
+  mentioned_department: number | null;
+  mentioned_department_detail?: Department | null;
+  last_edited_by: number | null;
+  last_edited_by_detail?: User | null;
+  approved_by: number | null;
+  approved_by_detail?: User | null;
+  approved_at: string | null;
+  rejection_reason?: string;
+  created_task: number | null;
+  created_bug: number | null;
+  can_edit?: boolean;
+  can_approve?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AuditLog {
+  id: number;
+  actor: number | null;
+  actor_detail?: User | null;
+  action: string;
+  entity_type: string;
+  entity_id: number;
+  entity_label: string;
+  detail: string;
+  changes: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface Comment {
@@ -135,6 +222,76 @@ export interface DashboardStats {
   my_open_bugs: number;
   project_open_bugs: number;
   overdue_tasks: number;
+}
+
+export interface UserStats {
+  total_hours: number;
+  task_hours: number;
+  bug_hours: number;
+  assigned_tasks: number;
+  open_tasks: number;
+  overdue_tasks: number;
+  completed_tasks: number;
+  assigned_bugs: number;
+  open_bugs: number;
+  completed_bugs: number;
+  reported_tasks: number;
+  reported_bugs: number;
+  projects_count: number;
+}
+
+export interface UserProjectMembership {
+  id: number;
+  name: string;
+  code: string;
+  status: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface UserSummary {
+  user: User;
+  stats: UserStats;
+  projects: UserProjectMembership[];
+  recent_tasks: Task[];
+  recent_bugs: Bug[];
+}
+
+export interface ReportStatCard {
+  label: string;
+  value: string | number;
+  tone?: "default" | "task" | "bug" | "success" | "danger";
+}
+
+export interface ReportProfileRow {
+  label: string;
+  value: string;
+}
+
+export interface ReportSection {
+  title: string;
+  headers?: string[];
+  rows?: string[][];
+  bullets?: string[];
+}
+
+export interface WorkItemReport {
+  title: string;
+  generated_at: string;
+  report_type?: "user" | "project";
+  stat_cards?: ReportStatCard[];
+  profile_rows?: ReportProfileRow[];
+  sections?: ReportSection[];
+  progress?: {
+    task_completion_percent: number;
+    bug_resolution_percent: number;
+    open_tasks: number;
+    open_bugs: number;
+    total_tasks: number;
+    total_bugs: number;
+    tasks_done: number;
+    bugs_closed: number;
+  };
 }
 
 export interface Notification {

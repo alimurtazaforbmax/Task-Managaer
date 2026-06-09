@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from apps.core.models import ActivityLog, Attachment, Comment, Notification, TimeEntry
+from apps.core.models import (
+    ActivityLog,
+    Attachment,
+    AuditLog,
+    Comment,
+    Notification,
+    TimeEntry,
+)
 
 
 @admin.register(Comment)
@@ -21,6 +28,13 @@ class TimeEntryAdmin(admin.ModelAdmin):
 @admin.register(ActivityLog)
 class ActivityLogAdmin(admin.ModelAdmin):
     list_display = ("action", "actor", "created_at")
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ("action", "entity_type", "entity_label", "actor", "created_at")
+    list_filter = ("action", "entity_type")
+    search_fields = ("entity_label", "detail")
 
 
 @admin.register(Notification)

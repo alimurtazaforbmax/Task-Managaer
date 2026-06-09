@@ -12,6 +12,11 @@ const colors: Record<string, string> = {
   qa_verification: "bg-indigo-100 text-indigo-800",
   closed: "bg-green-100 text-green-800",
   rejected: "bg-rose-100 text-rose-800",
+  active: "bg-emerald-100 text-emerald-800",
+  on_hold: "bg-amber-100 text-amber-800",
+  archived: "bg-slate-200 text-slate-600",
+  pending: "bg-amber-100 text-amber-800",
+  approved: "bg-green-100 text-green-800",
 };
 
 export default function StatusBadge({ status }: { status: string }) {

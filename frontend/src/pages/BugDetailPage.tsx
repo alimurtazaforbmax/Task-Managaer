@@ -3,9 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import BackLink from "../components/BackLink";
+import PageContainer from "../components/PageContainer";
 import MultiUserSelect from "../components/MultiUserSelect";
-import StatusBadge from "../components/StatusBadge";
 import WorkItemActions from "../components/WorkItemActions";
+import WorkItemComments from "../components/workitem/WorkItemComments";
+import WorkItemHero from "../components/workitem/WorkItemHero";
+import WorkItemSection from "../components/workitem/WorkItemSection";
+import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
 import { useAuth } from "../context/AuthContext";
 import { useUsers } from "../hooks/useUsers";
 import type { ApiResponse, Bug } from "../types";
@@ -178,15 +182,25 @@ export default function BugDetailPage() {
   const canDeleteFile = bug.is_owner || user?.role === "admin";
 
   return (
-    <div className="max-w-3xl">
+    <PageContainer size="md">
+    <div className="space-y-6">
       <BackLink to="/bugs" label="Bugs" />
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-3 mt-2">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-2xl font-bold">{bug.title}</h1>
-          <StatusBadge status={bug.status} />
-        </div>
-        {bug.is_owner && (
-          <div className="ml-auto shrink-0 pl-6">
+
+      <WorkItemHero
+        type="bug"
+        title={bug.title}
+        status={bug.status}
+        description={bug.description}
+        projectId={bug.project}
+        projectName={bug.project_name}
+        priority={bug.priority}
+        severity={bug.severity}
+        dueDate={bug.due_date}
+        environment={bug.environment}
+        reporter={bug.reporter_detail}
+        assignees={bug.assignees_detail}
+        actions={
+          bug.is_owner ? (
             <WorkItemActions
               editLabel={showEdit ? "Close edit" : "Edit bug"}
               itemTitle={bug.title}
@@ -195,21 +209,20 @@ export default function BugDetailPage() {
               onDelete={() => deleteBug.mutate()}
               deletePending={deleteBug.isPending}
             />
+          ) : undefined
+        }
+      >
+        {bug.steps_to_reproduce && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-2">
+              Steps to reproduce
+            </p>
+            <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
+              {bug.steps_to_reproduce}
+            </pre>
           </div>
         )}
-      </div>
-      <p className="text-sm text-slate-500 mt-1">
-        {bug.severity} severity · Owner: {bug.reporter_detail?.username ?? "—"}
-        {bug.assignees_detail?.length ? (
-          <> · Assigned: {bug.assignees_detail.map((u) => u.username).join(", ")}</>
-        ) : null}
-      </p>
-      <p className="text-slate-600 mt-4">{bug.description}</p>
-      {bug.steps_to_reproduce && (
-        <pre className="mt-4 bg-slate-100 rounded-lg p-4 text-sm whitespace-pre-wrap">
-          {bug.steps_to_reproduce}
-        </pre>
-      )}
+      </WorkItemHero>
 
       {showEdit && (
         <form
@@ -217,36 +230,38 @@ export default function BugDetailPage() {
             e.preventDefault();
             updateBug.mutate();
           }}
-          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+          className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3 shadow-sm"
         >
-          <h2 className="font-semibold">Edit bug</h2>
+          <h2 className="font-semibold text-slate-900">Edit bug</h2>
           <input
             required
-            className="w-full border rounded-lg px-3 py-2"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
             value={editForm.title}
             onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
           />
           <textarea
-            className="w-full border rounded-lg px-3 py-2"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
             placeholder="Description"
+            rows={3}
             value={editForm.description}
             onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
           />
           <textarea
-            className="w-full border rounded-lg px-3 py-2"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
             placeholder="Steps to reproduce"
+            rows={4}
             value={editForm.steps_to_reproduce}
             onChange={(e) => setEditForm({ ...editForm, steps_to_reproduce: e.target.value })}
           />
           <input
-            className="w-full border rounded-lg px-3 py-2"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
             placeholder="Environment"
             value={editForm.environment}
             onChange={(e) => setEditForm({ ...editForm, environment: e.target.value })}
           />
           <div className="grid grid-cols-2 gap-3">
             <select
-              className="border rounded-lg px-3 py-2"
+              className="border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
               value={editForm.severity}
               onChange={(e) => setEditForm({ ...editForm, severity: e.target.value })}
             >
@@ -255,7 +270,7 @@ export default function BugDetailPage() {
               ))}
             </select>
             <select
-              className="border rounded-lg px-3 py-2"
+              className="border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
               value={editForm.priority}
               onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
             >
@@ -270,7 +285,7 @@ export default function BugDetailPage() {
             selected={editForm.assignees}
             onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
           />
-          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+          <button type="submit" className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-amber-700">
             Save changes
           </button>
         </form>
@@ -278,7 +293,7 @@ export default function BugDetailPage() {
 
       {statusFeedback && (
         <p
-          className={`mt-4 text-sm rounded-lg px-3 py-2 ${
+          className={`text-sm rounded-xl px-4 py-3 shadow-sm ${
             statusFeedback.type === "success"
               ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
               : "bg-rose-50 text-rose-800 border border-rose-200"
@@ -288,147 +303,129 @@ export default function BugDetailPage() {
         </p>
       )}
 
-      {bug.can_change_status ? (
-        <div className="mt-6 flex gap-2 flex-wrap">
-          {BUG_STATUSES.map((s) => (
+      <WorkItemStatusPicker
+        type="bug"
+        currentStatus={bug.status}
+        statuses={BUG_STATUSES}
+        canChange={Boolean(bug.can_change_status)}
+        isPending={statusMutation.isPending}
+        onSelect={(s) => statusMutation.mutate(s)}
+        extraActions={
+          canReject ? (
             <button
-              key={s}
-              disabled={statusMutation.isPending}
-              onClick={() => statusMutation.mutate(s)}
-              className={`text-xs px-3 py-1 rounded-full border ${
-                bug.status === s ? "bg-brand-600 text-white border-brand-600" : "hover:bg-slate-100"
-              }`}
-            >
-              {s.replace(/_/g, " ")}
-            </button>
-          ))}
-          {canReject && (
-            <button
+              type="button"
               onClick={() => setShowReject(!showReject)}
-              className="text-xs px-3 py-1 rounded-full border border-rose-300 text-rose-700 hover:bg-rose-50"
+              className="text-xs px-3 py-1.5 rounded-full border border-rose-300 text-rose-700 font-medium hover:bg-rose-50 shadow-sm"
             >
               Reject
             </button>
-          )}
-        </div>
-      ) : (
-        <p className="mt-6 text-sm text-slate-500">
-          Only the bug owner or assignees can change status.
-        </p>
-      )}
+          ) : undefined
+        }
+      />
 
       {showReject && (
         <form
-          className="mt-4 bg-rose-50 border border-rose-200 rounded-xl p-4"
+          className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm"
           onSubmit={(e: FormEvent) => {
             e.preventDefault();
             if (rejectReason.length >= 10) rejectMutation.mutate(rejectReason);
           }}
         >
-          <p className="text-sm font-medium text-rose-800">Rejection reason (min 10 chars)</p>
+          <p className="text-sm font-semibold text-rose-800">Rejection reason (min 10 chars)</p>
           <textarea
             required
             minLength={10}
-            className="mt-2 w-full border rounded-lg px-3 py-2 text-sm"
+            rows={3}
+            className="mt-2 w-full border border-rose-200 rounded-lg px-3 py-2 text-sm shadow-sm"
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
           />
           <button
             type="submit"
-            className="mt-2 bg-rose-600 text-white px-4 py-2 rounded-lg text-sm"
+            className="mt-3 bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-rose-700"
           >
             Confirm reject
           </button>
         </form>
       )}
 
-      <section className="mt-8 bg-white border rounded-xl p-5">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Evidence (images / video)</h2>
+      <WorkItemSection
+        title="Evidence"
+        subtitle="Images and video attachments"
+        accent="bug"
+        action={
           <button
+            type="button"
             onClick={() => fileRef.current?.click()}
-            className="text-sm text-brand-600 hover:underline"
+            className="text-sm font-medium text-amber-700 hover:text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg"
           >
             Upload
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,video/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) uploadFile.mutate(f);
-            }}
-          />
-        </div>
-        <div className="mt-3 space-y-2">
-          {bug.attachments?.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center justify-between border rounded-lg p-2 text-sm"
-            >
-              <a
-                href={a.file_url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-brand-600 hover:underline"
-              >
-                {a.original_name} ({a.attachment_type})
-              </a>
-              {canDeleteFile && (
-                <button
-                  onClick={() => deleteAttachment.mutate(a.id)}
-                  className="text-rose-600 hover:text-rose-800 text-xs px-2 py-1"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-6 bg-white border rounded-xl p-5">
-        <h2 className="font-semibold">Discussion</h2>
-        <ul className="mt-3 space-y-3">
-          {bug.comments?.map((c) => (
-            <li
-              key={c.id}
-              className={`rounded-lg p-3 text-sm ${
-                c.comment_type === "rejection_reason"
-                  ? "bg-rose-50 border border-rose-100"
-                  : "bg-slate-50"
-              }`}
-            >
-              <p className="font-medium text-slate-700">
-                {c.author_detail?.username ?? "User"}
-                {c.comment_type === "rejection_reason" && (
-                  <span className="ml-2 text-rose-600 text-xs">rejection</span>
-                )}
-              </p>
-              <p className="mt-1">{c.text}</p>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="mt-4 flex gap-2"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            if (comment.trim()) addComment.mutate(comment);
+        }
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,video/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadFile.mutate(f);
           }}
-        >
-          <input
-            className="flex-1 border rounded-lg px-3 py-2 text-sm"
-            placeholder="Reply..."
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-          />
-          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
-            Post
-          </button>
-        </form>
-      </section>
+        />
+        {!bug.attachments?.length ? (
+          <p className="text-sm text-slate-400">No attachments uploaded yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {bug.attachments.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm shadow-sm"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 border border-amber-200">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <a
+                      href={a.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-brand-600 hover:underline truncate block"
+                    >
+                      {a.original_name}
+                    </a>
+                    <p className="text-xs text-slate-500 capitalize">{a.attachment_type}</p>
+                  </div>
+                </div>
+                {canDeleteFile && (
+                  <button
+                    type="button"
+                    onClick={() => deleteAttachment.mutate(a.id)}
+                    className="text-rose-600 hover:text-rose-800 text-xs font-medium px-2 py-1"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </WorkItemSection>
+
+      <WorkItemComments
+        type="bug"
+        comments={bug.comments}
+        comment={comment}
+        onCommentChange={setComment}
+        onSubmit={() => {
+          if (comment.trim()) addComment.mutate(comment);
+        }}
+        placeholder="Reply..."
+      />
     </div>
+    </PageContainer>
   );
 }
