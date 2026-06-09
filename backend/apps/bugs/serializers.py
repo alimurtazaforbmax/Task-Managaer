@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
 from apps.bugs.models import Bug
+from apps.accounts.permissions_util import is_admin_user
 from apps.core.permissions import can_change_status
 from apps.core.serializers import (
     ActivityLogSerializer,
@@ -79,7 +80,7 @@ class BugSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
-        if request.user.role == "admin":
+        if is_admin_user(request.user):
             return True
         return obj.reporter_id == request.user.id
 

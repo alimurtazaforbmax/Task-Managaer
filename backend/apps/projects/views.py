@@ -4,7 +4,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
-from apps.core.mixins import StandardResponseMixin, user_project_ids
+from apps.core.mixins import StandardResponseMixin, member_project_ids, user_project_ids
+from apps.accounts.permissions_util import user_has_permission
 from apps.core.permissions import IsAdmin
 from apps.core.responses import error_response, success_response
 from apps.core.services import record_audit_log
@@ -30,7 +31,10 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Project.objects.prefetch_related("members__user").all()
-        if self.request.user.role != "admin":
+        members_only = self.request.query_params.get("members_only") in ("true", "1")
+        if members_only:
+            qs = qs.filter(id__in=member_project_ids(self.request.user))
+        else:
             qs = qs.filter(id__in=user_project_ids(self.request.user))
         return qs
 
@@ -107,9 +111,9 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 project.members.select_related("user"), many=True
             )
             return success_response(data=serializer.data)
-        if request.user.role != "admin":
+        if not user_has_permission(request.user, "can_manage_projects"):
             return error_response(
-                "Only admin can add members.",
+                "You do not have permission to manage project members.",
                 status=status.HTTP_403_FORBIDDEN,
             )
         serializer = ProjectMemberSerializer(data={**request.data, "project": project.id})
@@ -194,6 +198,4 @@ class ProjectMemberViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.role != "admin":
-            qs = qs.filter(project_id__in=user_project_ids(self.request.user))
-        return qs
+        return qs.filter(project_id__in=user_project_ids(self.request.user))

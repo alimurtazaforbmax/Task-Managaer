@@ -1,25 +1,21 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router-dom";
 import api, { unwrap } from "../api/client";
 import DepartmentCard from "../components/DepartmentCard";
 import { useAuth } from "../context/AuthContext";
-import type { ApiResponse, Department, Paginated } from "../types";
+import type { ApiResponse, Department, Paginated, Permission } from "../types";
+import { DEPARTMENT_OVERLAY_PERMISSIONS } from "../types";
 
-const PERM_LABELS: { key: keyof Department; label: string; desc: string }[] = [
-  { key: "can_create_tasks", label: "Create tasks", desc: "Allow creating new tasks" },
-  { key: "can_create_bugs", label: "Create bugs", desc: "Allow reporting bugs" },
-  { key: "can_edit_tasks", label: "Edit tasks", desc: "Allow editing task details" },
-  { key: "can_edit_bugs", label: "Edit bugs", desc: "Allow editing bug details" },
-];
+interface PermissionCatalogResponse {
+  catalog: Permission[];
+  grouped: Record<string, Permission[]>;
+}
 
 const emptyForm = {
   name: "",
   description: "",
-  can_create_tasks: false,
-  can_create_bugs: false,
-  can_edit_tasks: false,
-  can_edit_bugs: false,
+  permission_ids: [] as number[],
 };
 
 export default function DepartmentsPage() {
@@ -30,6 +26,25 @@ export default function DepartmentsPage() {
   const [editing, setEditing] = useState<Department | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+
+  const { data: catalog } = useQuery({
+    queryKey: ["permissions-catalog"],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<PermissionCatalogResponse>>("/auth/permissions/");
+      return unwrap(res);
+    },
+    enabled: user?.role === "admin",
+  });
+
+  const overlayPermissions = useMemo(
+    () =>
+      (catalog?.catalog ?? []).filter((p) =>
+        DEPARTMENT_OVERLAY_PERMISSIONS.includes(
+          p.codename as (typeof DEPARTMENT_OVERLAY_PERMISSIONS)[number]
+        )
+      ),
+    [catalog]
+  );
 
   const { data: departments, isLoading } = useQuery({
     queryKey: ["departments"],
@@ -81,10 +96,8 @@ export default function DepartmentsPage() {
     setForm({
       name: dept.name,
       description: dept.description,
-      can_create_tasks: dept.can_create_tasks ?? false,
-      can_create_bugs: dept.can_create_bugs ?? false,
-      can_edit_tasks: dept.can_edit_tasks ?? false,
-      can_edit_bugs: dept.can_edit_bugs ?? false,
+      permission_ids:
+        dept.permissions_detail?.map((p) => p.id) ?? dept.permission_ids ?? [],
     });
   };
 
@@ -102,7 +115,7 @@ export default function DepartmentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Departments</h1>
           <p className="text-slate-500 mt-1">
-            Organize teams and control what members can create or edit.
+            Organize teams. Extra department permissions add on top of each user&apos;s role.
           </p>
         </div>
         <button
@@ -129,7 +142,7 @@ export default function DepartmentsPage() {
               {editing ? "Edit department" : "Create department"}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Users inherit permissions from their assigned department.
+              Department extras are merged with each member&apos;s role permissions.
             </p>
           </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -158,13 +171,13 @@ export default function DepartmentsPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <p className="text-sm font-semibold text-slate-800">Permissions</p>
+            <p className="text-sm font-semibold text-slate-800">Extra permissions</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {PERM_LABELS.map(({ key, label, desc }) => (
+              {overlayPermissions.map((perm) => (
                 <label
-                  key={key}
+                  key={perm.id}
                   className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition ${
-                    form[key]
+                    form.permission_ids.includes(perm.id)
                       ? "border-brand-200 bg-brand-50/60"
                       : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
@@ -172,12 +185,19 @@ export default function DepartmentsPage() {
                   <input
                     type="checkbox"
                     className="mt-0.5"
-                    checked={Boolean(form[key])}
-                    onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+                    checked={form.permission_ids.includes(perm.id)}
+                    onChange={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        permission_ids: prev.permission_ids.includes(perm.id)
+                          ? prev.permission_ids.filter((id) => id !== perm.id)
+                          : [...prev.permission_ids, perm.id],
+                      }))
+                    }
                   />
                   <span>
-                    <span className="block text-sm font-medium text-slate-800">{label}</span>
-                    <span className="block text-xs text-slate-500 mt-0.5">{desc}</span>
+                    <span className="block text-sm font-medium text-slate-800">{perm.name}</span>
+                    <span className="block text-xs text-slate-500 mt-0.5">{perm.description}</span>
                   </span>
                 </label>
               ))}

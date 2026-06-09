@@ -31,9 +31,11 @@ export default function TicketsPage() {
   const { data: users } = useUsers();
 
   const { data: projects } = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["projects", "members-only"],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>("/projects/");
+      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>(
+        "/projects/?members_only=true"
+      );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
     },
@@ -59,8 +61,13 @@ export default function TicketsPage() {
     },
   });
 
+  const memberProjects = projects ?? [];
+
   const createTicket = useMutation({
     mutationFn: async () => {
+      if (!form.project) {
+        throw new Error("Project is required.");
+      }
       const res = await api.post<ApiResponse<Ticket>>("/tickets/", {
         title: form.title,
         description: form.description,
@@ -91,7 +98,7 @@ export default function TicketsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Tickets</h1>
           <p className="text-slate-500 mt-1">
-            Raise issues or request tasks and bugs for PM review
+            Raise issues for a project you belong to — visible to that project&apos;s members only
           </p>
         </div>
         <button
@@ -147,15 +154,19 @@ export default function TicketsPage() {
               </select>
             </label>
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Project</span>
+              <span className="text-sm font-medium text-slate-700">
+                Project <span className="text-rose-500">*</span>
+              </span>
               <select
                 required
                 value={form.project}
                 onChange={(e) => setForm({ ...form, project: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">Select project</option>
-                {projects?.map((p) => (
+                <option value="" disabled>
+                  Select a project you are a member of
+                </option>
+                {memberProjects.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -249,7 +260,11 @@ export default function TicketsPage() {
             />
           ))}
           {!tickets?.length && (
-            <p className="text-slate-400 text-sm">No tickets yet. Raise one above.</p>
+            <p className="text-slate-400 text-sm">
+              {memberProjects.length === 0
+                ? "Join a project to view or raise tickets."
+                : "No tickets yet for your projects. Raise one above."}
+            </p>
           )}
         </ul>
       )}

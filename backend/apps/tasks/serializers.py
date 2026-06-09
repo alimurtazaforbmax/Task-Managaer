@@ -7,6 +7,7 @@ from apps.core.serializers import (
     CommentSerializer,
     TimeEntrySerializer,
 )
+from apps.accounts.permissions_util import is_admin_user
 from apps.core.permissions import can_change_status
 from apps.tasks.models import Task
 
@@ -76,7 +77,7 @@ class TaskSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request or not request.user.is_authenticated:
             return False
-        if request.user.role == "admin":
+        if is_admin_user(request.user):
             return True
         return obj.reporter_id == request.user.id
 

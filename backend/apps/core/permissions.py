@@ -1,29 +1,22 @@
 from rest_framework.permissions import BasePermission
 
+from apps.accounts.permissions_util import is_admin_user, user_has_permission
 from apps.projects.models import ProjectMember
 
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role == "admin"
-        )
+        return is_admin_user(request.user)
 
 
 class IsAdminOrProjectManager(BasePermission):
     def has_permission(self, request, view):
-        return (
-            request.user
-            and request.user.is_authenticated
-            and request.user.role in ("admin", "project_manager")
-        )
+        return user_has_permission(request.user, "can_approve_tickets")
 
 
 class IsProjectMember(BasePermission):
     def has_object_permission(self, request, view, obj):
-        if request.user.role == "admin":
+        if is_admin_user(request.user):
             return True
         project = getattr(obj, "project", obj)
         return ProjectMember.objects.filter(
@@ -43,37 +36,39 @@ def can_change_status(user, obj) -> bool:
 
 
 def is_owner_or_admin(user, obj) -> bool:
-    if user.role == "admin":
+    if is_admin_user(user):
         return True
     return obj.reporter_id == user.id
 
 
+def can_edit_work_item(user, obj, permission_codename: str) -> bool:
+    if is_owner_or_admin(user, obj):
+        return True
+    return user_has_permission(user, permission_codename)
+
+
 def is_admin_or_project_manager(user) -> bool:
-    return (
-        user
-        and user.is_authenticated
-        and user.role in ("admin", "project_manager")
-    )
+    return user_has_permission(user, "can_approve_tickets")
 
 
 def can_edit_ticket(user, ticket) -> bool:
     if not user or not user.is_authenticated:
         return False
-    if is_admin_or_project_manager(user):
+    if ticket.raised_by_id == user.id:
         return True
-    return ticket.raised_by_id == user.id
+    return user_has_permission(user, "can_edit_tickets")
 
 
 def can_approve_ticket(user, ticket) -> bool:
     if not user or not user.is_authenticated:
         return False
-    if not is_admin_or_project_manager(user):
+    if ticket.status != "pending":
         return False
-    return ticket.status == "pending"
+    return user_has_permission(user, "can_approve_tickets")
 
 
 def can_delete_attachment(user, attachment, parent_obj) -> bool:
-    if user.role == "admin":
+    if is_admin_user(user):
         return True
     if parent_obj.reporter_id == user.id:
         return True

@@ -1,0 +1,173 @@
+"""Canonical permission catalog and default role grants."""
+
+PERMISSION_REGISTRY: list[dict[str, str]] = [
+    {
+        "codename": "can_create_tasks",
+        "name": "Create tasks",
+        "category": "Tasks",
+        "description": "Create new tasks in projects.",
+    },
+    {
+        "codename": "can_edit_tasks",
+        "name": "Edit tasks",
+        "category": "Tasks",
+        "description": "Edit any task details (not only own).",
+    },
+    {
+        "codename": "can_delete_tasks",
+        "name": "Delete tasks",
+        "category": "Tasks",
+        "description": "Delete tasks created by others.",
+    },
+    {
+        "codename": "can_create_bugs",
+        "name": "Create bugs",
+        "category": "Bugs",
+        "description": "Report new bugs in projects.",
+    },
+    {
+        "codename": "can_edit_bugs",
+        "name": "Edit bugs",
+        "category": "Bugs",
+        "description": "Edit any bug details (not only own).",
+    },
+    {
+        "codename": "can_delete_bugs",
+        "name": "Delete bugs",
+        "category": "Bugs",
+        "description": "Delete bugs created by others.",
+    },
+    {
+        "codename": "can_create_tickets",
+        "name": "Create tickets",
+        "category": "Tickets",
+        "description": "Raise support or work-request tickets.",
+    },
+    {
+        "codename": "can_edit_tickets",
+        "name": "Edit tickets",
+        "category": "Tickets",
+        "description": "Edit tickets raised by other users.",
+    },
+    {
+        "codename": "can_approve_tickets",
+        "name": "Approve tickets",
+        "category": "Tickets",
+        "description": "Approve or reject tickets and spawn tasks/bugs.",
+    },
+    {
+        "codename": "can_manage_projects",
+        "name": "Manage projects",
+        "category": "Projects",
+        "description": "Create, edit, archive projects and manage members.",
+    },
+    {
+        "codename": "can_view_all_projects",
+        "name": "View all projects",
+        "category": "Projects",
+        "description": "See every project regardless of membership.",
+    },
+    {
+        "codename": "can_manage_users",
+        "name": "Manage users",
+        "category": "Administration",
+        "description": "Create and edit user accounts.",
+    },
+    {
+        "codename": "can_manage_departments",
+        "name": "Manage departments",
+        "category": "Administration",
+        "description": "Create and edit departments.",
+    },
+    {
+        "codename": "can_manage_roles",
+        "name": "Manage roles",
+        "category": "Administration",
+        "description": "Create custom roles and assign permissions.",
+    },
+    {
+        "codename": "can_view_audit_logs",
+        "name": "View audit logs",
+        "category": "Administration",
+        "description": "View the system audit trail.",
+    },
+]
+
+SYSTEM_ROLES: list[dict] = [
+    {
+        "name": "Admin",
+        "slug": "admin",
+        "description": "Full system access.",
+        "is_system": True,
+        "is_admin": True,
+        "permissions": [],
+    },
+    {
+        "name": "Project Manager",
+        "slug": "project_manager",
+        "description": "Leads projects, approves tickets, manages work items.",
+        "is_system": True,
+        "is_admin": False,
+        "permissions": [
+            "can_create_tasks",
+            "can_edit_tasks",
+            "can_create_bugs",
+            "can_edit_bugs",
+            "can_create_tickets",
+            "can_edit_tickets",
+            "can_approve_tickets",
+            "can_view_all_projects",
+        ],
+    },
+    {
+        "name": "Team Lead",
+        "slug": "team_lead",
+        "description": "Leads a team; can approve tickets and edit team work.",
+        "is_system": True,
+        "is_admin": False,
+        "permissions": [
+            "can_create_tasks",
+            "can_edit_tasks",
+            "can_create_bugs",
+            "can_edit_bugs",
+            "can_create_tickets",
+            "can_edit_tickets",
+            "can_approve_tickets",
+        ],
+    },
+    {
+        "name": "Developer",
+        "slug": "developer",
+        "description": "Builds features and works on assigned tasks.",
+        "is_system": True,
+        "is_admin": False,
+        "permissions": ["can_create_tickets"],
+    },
+    {
+        "name": "QA",
+        "slug": "qa",
+        "description": "Tests software and reports bugs.",
+        "is_system": True,
+        "is_admin": False,
+        "permissions": ["can_create_bugs", "can_create_tickets"],
+    },
+    {
+        "name": "Viewer",
+        "slug": "viewer",
+        "description": "Read-only access with ticket raising.",
+        "is_system": True,
+        "is_admin": False,
+        "permissions": ["can_create_tickets"],
+    },
+]
+
+DEPARTMENT_OVERLAY_CODENAMES = (
+    "can_create_tasks",
+    "can_create_bugs",
+    "can_edit_tasks",
+    "can_edit_bugs",
+)
+
+
+def all_codenames() -> list[str]:
+    return [item["codename"] for item in PERMISSION_REGISTRY]

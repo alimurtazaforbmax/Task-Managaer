@@ -1,8 +1,19 @@
 from rest_framework import serializers
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
+from apps.core.mixins import user_is_project_member
 from apps.core.permissions import can_approve_ticket, can_edit_ticket
 from apps.tickets.models import Ticket
+
+
+def validate_project_membership(user, project):
+    if not project:
+        raise serializers.ValidationError("Project is required.")
+    if not user_is_project_member(user, project):
+        raise serializers.ValidationError(
+            "You must be a member of this project to work with its tickets."
+        )
+    return project
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -80,6 +91,12 @@ class TicketSerializer(serializers.ModelSerializer):
             return False
         return can_approve_ticket(request.user, obj)
 
+    def validate_project(self, value):
+        request = self.context.get("request")
+        if request:
+            return validate_project_membership(request.user, value)
+        return value
+
 
 class TicketListSerializer(serializers.ModelSerializer):
     raised_by_detail = UserSerializer(source="raised_by", read_only=True)
@@ -123,6 +140,12 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
             "mentioned_user",
             "mentioned_department",
         )
+
+    def validate_project(self, value):
+        request = self.context.get("request")
+        if request:
+            return validate_project_membership(request.user, value)
+        return value
 
 
 class TicketRejectSerializer(serializers.Serializer):

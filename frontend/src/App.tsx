@@ -17,6 +17,7 @@ import DepartmentDetailPage from "./pages/DepartmentDetailPage";
 import TicketsPage from "./pages/TicketsPage";
 import TicketDetailPage from "./pages/TicketDetailPage";
 import AdminLogsPage from "./pages/AdminLogsPage";
+import RolesPage from "./pages/RolesPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -52,6 +53,7 @@ function AppRoutes() {
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
         <Route path="admin/logs" element={<AdminLogsPage />} />
+        <Route path="roles" element={<RolesPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route path="departments/:id" element={<DepartmentDetailPage />} />
         <Route path="users" element={<UsersPage />} />

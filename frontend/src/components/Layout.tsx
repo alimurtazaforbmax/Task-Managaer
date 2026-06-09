@@ -39,6 +39,7 @@ export default function Layout() {
             ...baseNav,
             ...(user?.role === "admin"
               ? [
+                  { to: "/roles", label: "Roles" },
                   { to: "/departments", label: "Departments" },
                   { to: "/users", label: "Users" },
                   { to: "/admin/logs", label: "Logs" },
@@ -69,6 +70,7 @@ export default function Layout() {
             ...baseNav,
             ...(user?.role === "admin"
               ? [
+                  { to: "/roles", label: "Roles" },
                   { to: "/departments", label: "Depts" },
                   { to: "/users", label: "Users" },
                   { to: "/admin/logs", label: "Logs" },

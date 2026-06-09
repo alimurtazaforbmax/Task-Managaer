@@ -5,8 +5,7 @@ import api, { unwrap } from "../api/client";
 import UserCard from "../components/UserCard";
 import UserPhotoUpload from "../components/UserPhotoUpload";
 import { useAuth } from "../context/AuthContext";
-import type { ApiResponse, Department, Paginated, User } from "../types";
-import { USER_ROLES } from "../types";
+import type { ApiResponse, Department, Paginated, Role, User } from "../types";
 import { formatRoleLabel } from "../utils/projectStyle";
 
 function FieldLabel({
@@ -38,9 +37,20 @@ export default function UsersPage() {
     first_name: "",
     last_name: "",
     job_title: "",
-    role: "developer",
+    access_role: "" as string | number,
     department: "" as string | number,
     is_active: true,
+  });
+
+  const { data: roles } = useQuery({
+    queryKey: ["roles"],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<Paginated<Role> | Role[]>>(
+        "/auth/roles/?page_size=100"
+      );
+      const d = unwrap(res);
+      return Array.isArray(d) ? d : d.results;
+    },
   });
 
   const { data: departments } = useQuery({
@@ -78,7 +88,7 @@ export default function UsersPage() {
       first_name: "",
       last_name: "",
       job_title: "",
-      role: "developer",
+      access_role: roles?.find((r) => r.slug === "developer")?.id ?? "",
       department: "",
       is_active: true,
     });
@@ -95,7 +105,7 @@ export default function UsersPage() {
     fd.append("first_name", form.first_name);
     fd.append("last_name", form.last_name);
     fd.append("job_title", form.job_title);
-    fd.append("role", form.role);
+    fd.append("access_role", String(form.access_role));
     if (form.department) fd.append("department", String(form.department));
     if (profilePhoto) fd.append("profile_picture", profilePhoto);
     return fd;
@@ -107,7 +117,7 @@ export default function UsersPage() {
     fd.append("first_name", form.first_name);
     fd.append("last_name", form.last_name);
     fd.append("job_title", form.job_title);
-    fd.append("role", form.role);
+    fd.append("access_role", String(form.access_role));
     fd.append("is_active", String(form.is_active));
     if (form.department) fd.append("department", String(form.department));
     if (form.password) fd.append("password", form.password);
@@ -125,6 +135,7 @@ export default function UsersPage() {
       }
       const payload = {
         ...form,
+        access_role: Number(form.access_role),
         department: form.department ? Number(form.department) : null,
       };
       const res = await api.post<ApiResponse<User>>("/auth/users/", payload);
@@ -154,7 +165,7 @@ export default function UsersPage() {
         first_name: form.first_name,
         last_name: form.last_name,
         job_title: form.job_title,
-        role: form.role,
+        access_role: Number(form.access_role),
         is_active: form.is_active,
         department: form.department ? Number(form.department) : null,
       };
@@ -182,7 +193,7 @@ export default function UsersPage() {
       first_name: u.first_name,
       last_name: u.last_name,
       job_title: u.job_title ?? "",
-      role: u.role,
+      access_role: u.access_role ?? "",
       department: u.department ?? "",
       is_active: u.is_active !== false,
     });
@@ -323,15 +334,18 @@ export default function UsersPage() {
                   />
                 </label>
                 <label className="block space-y-1">
-                  <FieldLabel>Role</FieldLabel>
+                  <FieldLabel>Access role</FieldLabel>
                   <select
+                    required
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    value={form.access_role}
+                    onChange={(e) => setForm({ ...form, access_role: e.target.value })}
                   >
-                    {USER_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {formatRoleLabel(r)}
+                    <option value="">Select role</option>
+                    {roles?.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                        {r.is_admin ? " (full access)" : ""}
                       </option>
                     ))}
                   </select>

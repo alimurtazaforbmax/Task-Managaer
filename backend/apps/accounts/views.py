@@ -8,11 +8,15 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from apps.accounts.models import Department
 from apps.accounts.serializers import (
     DepartmentSerializer,
+    PermissionSerializer,
     RegisterSerializer,
+    RoleSerializer,
+    RoleWriteSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
 )
+from apps.accounts.models import Permission, Role
 from apps.accounts.department_summary import build_department_summary
 from apps.accounts.user_report import build_user_report
 from apps.accounts.user_summary import build_user_summary
@@ -45,7 +49,9 @@ class MeView(generics.RetrieveUpdateAPIView):
         return UserSerializer
 
     def get_object(self):
-        return User.objects.select_related("department").get(pk=self.request.user.pk)
+        return User.objects.select_related("department", "access_role").get(
+            pk=self.request.user.pk
+        )
 
     def retrieve(self, request, *args, **kwargs):
         serializer = UserSerializer(self.get_object(), context={"request": request})
@@ -167,11 +173,121 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         return success_response(message="Department deleted.", status=status.HTTP_200_OK)
 
 
+class PermissionListView(generics.ListAPIView):
+    permission_classes = [IsAdmin]
+    serializer_class = PermissionSerializer
+    queryset = Permission.objects.all()
+    pagination_class = None
+
+    def list(self, request, *args, **kwargs):
+        permissions = Permission.objects.all().order_by("category", "name")
+        catalog = PermissionSerializer(permissions, many=True).data
+        grouped: dict[str, list] = {}
+        for perm in catalog:
+            grouped.setdefault(perm["category"], []).append(perm)
+        return success_response(data={"catalog": catalog, "grouped": grouped})
+
+
+class RoleViewSet(viewsets.ModelViewSet):
+    queryset = Role.objects.prefetch_related("permissions").all()
+    permission_classes = [IsAuthenticated]
+    search_fields = ["name", "slug", "description"]
+    filterset_fields = ["is_system"]
+    create_message = "Role created."
+    update_message = "Role updated."
+    delete_message = "Role deleted."
+
+    def get_permissions(self):
+        if self.action in ("create", "update", "partial_update", "destroy"):
+            return [IsAdmin()]
+        return [IsAuthenticated()]
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return RoleWriteSerializer
+        return RoleSerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(data=serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_object())
+        return success_response(data=serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.save(is_system=False, is_admin=False)
+        record_audit_log(
+            actor=request.user,
+            action="created",
+            entity_type="role",
+            entity_id=role.id,
+            entity_label=role.name,
+        )
+        return success_response(
+            data=RoleSerializer(role).data,
+            message=self.create_message,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.is_admin:
+            return error_response(
+                "The admin role cannot be modified.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        partial = kwargs.pop("partial", False)
+        serializer = self.get_serializer(role, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.save()
+        record_audit_log(
+            actor=request.user,
+            action="updated",
+            entity_type="role",
+            entity_id=role.id,
+            entity_label=role.name,
+        )
+        return success_response(
+            data=RoleSerializer(role).data,
+            message=self.update_message,
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        role = self.get_object()
+        if role.is_system:
+            return error_response(
+                "System roles cannot be deleted.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if role.users.exists():
+            return error_response(
+                "Cannot delete a role that is assigned to users.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        record_audit_log(
+            actor=request.user,
+            action="deleted",
+            entity_type="role",
+            entity_id=role.id,
+            entity_label=role.name,
+        )
+        role.delete()
+        return success_response(message=self.delete_message)
+
+
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.select_related("department").all()
+    queryset = User.objects.select_related("department", "access_role").all()
     permission_classes = [IsAuthenticated]
     search_fields = ["username", "email", "first_name", "last_name"]
-    filterset_fields = ["role", "department", "is_active"]
+    filterset_fields = ["access_role", "department", "is_active"]
 
     def get_serializer_class(self):
         if self.action == "create":

@@ -10,11 +10,13 @@ def project_role_for_user(user: User) -> str:
     mapping = {
         "admin": ProjectMemberRole.PM,
         "project_manager": ProjectMemberRole.PM,
+        "team_lead": ProjectMemberRole.PM,
         "developer": ProjectMemberRole.DEVELOPER,
         "qa": ProjectMemberRole.QA,
         "viewer": ProjectMemberRole.VIEWER,
     }
-    return mapping.get(user.role, ProjectMemberRole.DEVELOPER)
+    slug = user.access_role.slug if user.access_role_id else "developer"
+    return mapping.get(slug, ProjectMemberRole.DEVELOPER)
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):

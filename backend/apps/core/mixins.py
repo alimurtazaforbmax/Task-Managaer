@@ -45,9 +45,22 @@ class StandardResponseMixin:
         return success_response(message=self.delete_message)
 
 
+def member_project_ids(user):
+    """Project IDs where the user is an explicit project member."""
+    return ProjectMember.objects.filter(user=user).values_list("project_id", flat=True)
+
+
+def user_is_project_member(user, project) -> bool:
+    if not user or not user.is_authenticated or not project:
+        return False
+    return ProjectMember.objects.filter(project=project, user=user).exists()
+
+
 def user_project_ids(user):
-    if user.role == "admin":
+    from apps.accounts.permissions_util import is_admin_user, user_has_permission
+
+    if is_admin_user(user) or user_has_permission(user, "can_view_all_projects"):
         from apps.projects.models import Project
 
         return Project.objects.values_list("id", flat=True)
-    return ProjectMember.objects.filter(user=user).values_list("project_id", flat=True)
+    return member_project_ids(user)

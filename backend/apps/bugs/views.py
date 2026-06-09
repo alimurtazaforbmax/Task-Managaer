@@ -15,7 +15,12 @@ from apps.bugs.serializers import (
 from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
 from apps.core.models import Attachment, AttachmentType, Comment, CommentType
-from apps.core.permissions import can_change_status, can_delete_attachment, is_owner_or_admin
+from apps.core.permissions import (
+    can_change_status,
+    can_delete_attachment,
+    can_edit_work_item,
+    is_owner_or_admin,
+)
 from apps.core.responses import error_response, success_response
 from apps.core.serializers import (
     AttachmentSerializer,
@@ -46,8 +51,7 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         qs = Bug.objects.select_related(
             "project", "assignee_department", "reporter", "related_task"
         ).prefetch_related("assignees")
-        if self.request.user.role != "admin":
-            qs = qs.filter(project_id__in=user_project_ids(self.request.user))
+        qs = qs.filter(project_id__in=user_project_ids(self.request.user))
         if self.action == "retrieve":
             qs = qs.prefetch_related(
                 "comments__author",
@@ -102,9 +106,9 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         bug = self.get_object()
-        if not is_owner_or_admin(request.user, bug):
+        if not can_edit_work_item(request.user, bug, "can_edit_bugs"):
             return error_response(
-                "Only the bug owner can edit details. You may change status only.",
+                "Only the bug owner or users with edit permission can change details.",
                 status=status.HTTP_403_FORBIDDEN,
             )
         partial = kwargs.pop("partial", False)

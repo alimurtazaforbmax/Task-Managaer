@@ -27,7 +27,7 @@ def build_user_report(user: User, request) -> dict:
         ("Name", display_name),
         ("Username", user.username),
         ("Email", user.email),
-        ("Role", user.get_role_display()),
+        ("Role", user.access_role.name if user.access_role_id else "—"),
         ("Department", profile.get("department_name") or "None"),
         ("Job title", user.job_title or "—"),
         ("Status", "Active" if user.is_active else "Inactive"),

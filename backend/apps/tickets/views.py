@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 from apps.bugs.models import Bug
-from apps.core.mixins import StandardResponseMixin
+from apps.core.mixins import StandardResponseMixin, member_project_ids
 from apps.core.permissions import can_approve_ticket, can_edit_ticket
 from apps.core.responses import error_response, success_response
 from apps.core.services import log_activity, record_audit_log
@@ -29,7 +29,7 @@ class TicketViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     delete_message = "Ticket deleted."
 
     def get_queryset(self):
-        return Ticket.objects.select_related(
+        qs = Ticket.objects.select_related(
             "project",
             "raised_by",
             "mentioned_user",
@@ -37,6 +37,7 @@ class TicketViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             "last_edited_by",
             "approved_by",
         )
+        return qs.filter(project_id__in=member_project_ids(self.request.user))
 
     def get_serializer_class(self):
         if self.action == "list":

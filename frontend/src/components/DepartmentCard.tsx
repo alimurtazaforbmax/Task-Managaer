@@ -2,13 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { getProjectInitials, getProjectPalette } from "../utils/projectStyle";
 import type { Department } from "../types";
 
-const PERM_LABELS: { key: keyof Department; label: string; tone: string }[] = [
-  { key: "can_create_tasks", label: "Create tasks", tone: "bg-sky-100 text-sky-800" },
-  { key: "can_create_bugs", label: "Create bugs", tone: "bg-amber-100 text-amber-800" },
-  { key: "can_edit_tasks", label: "Edit tasks", tone: "bg-emerald-100 text-emerald-800" },
-  { key: "can_edit_bugs", label: "Edit bugs", tone: "bg-violet-100 text-violet-800" },
-];
-
 interface DepartmentCardProps {
   readonly department: Department;
   readonly onEdit: (department: Department) => void;
@@ -22,7 +15,7 @@ export default function DepartmentCard({
 }: DepartmentCardProps) {
   const navigate = useNavigate();
   const palette = getProjectPalette(department.id);
-  const activePerms = PERM_LABELS.filter(({ key }) => department[key]);
+  const activePerms = department.permissions_detail ?? [];
 
   return (
     <div
@@ -63,11 +56,14 @@ export default function DepartmentCard({
 
         <div className="mt-3 flex flex-wrap gap-1.5 min-h-[1.5rem]">
           {activePerms.length === 0 ? (
-            <span className="text-xs text-slate-400">No permissions granted</span>
+            <span className="text-xs text-slate-400">No extra permissions</span>
           ) : (
-            activePerms.map(({ key, label, tone }) => (
-              <span key={key} className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${tone}`}>
-                {label}
+            activePerms.map((perm) => (
+              <span
+                key={perm.id}
+                className="rounded-full px-2 py-0.5 text-[11px] font-medium bg-sky-100 text-sky-800"
+              >
+                {perm.name}
               </span>
             ))
           )}

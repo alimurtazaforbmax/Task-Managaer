@@ -1,25 +1,50 @@
-DEPARTMENT_PERMISSION_FIELDS = (
-    "can_create_tasks",
-    "can_create_bugs",
-    "can_edit_tasks",
-    "can_edit_bugs",
+from apps.accounts.permission_registry import (
+    DEPARTMENT_OVERLAY_CODENAMES,
+    PERMISSION_REGISTRY,
+    all_codenames,
 )
 
 
-def get_department_permissions(user) -> dict[str, bool]:
-    base = {field: False for field in DEPARTMENT_PERMISSION_FIELDS}
+def get_user_permissions(user) -> dict[str, bool]:
+    base = {codename: False for codename in all_codenames()}
     if not user or not user.is_authenticated:
         return base
-    if user.role == "admin":
-        return {field: True for field in DEPARTMENT_PERMISSION_FIELDS}
+
+    role = getattr(user, "access_role", None)
+    if role and role.is_admin:
+        return {codename: True for codename in all_codenames()}
+
+    if role:
+        for codename in role.permissions.values_list("codename", flat=True):
+            if codename in base:
+                base[codename] = True
+
     department = getattr(user, "department", None)
-    if not department:
-        return base
-    return {
-        field: getattr(department, field, False)
-        for field in DEPARTMENT_PERMISSION_FIELDS
-    }
+    if department:
+        for codename in department.extra_permissions.filter(
+            codename__in=DEPARTMENT_OVERLAY_CODENAMES
+        ).values_list("codename", flat=True):
+            if codename in base:
+                base[codename] = True
+
+    return base
 
 
 def user_has_permission(user, permission: str) -> bool:
-    return get_department_permissions(user).get(permission, False)
+    return get_user_permissions(user).get(permission, False)
+
+
+def is_admin_user(user) -> bool:
+    if not user or not user.is_authenticated:
+        return False
+    role = getattr(user, "access_role", None)
+    return bool(role and role.is_admin)
+
+
+def user_role_slug(user) -> str:
+    role = getattr(user, "access_role", None)
+    return role.slug if role else "developer"
+
+
+def permission_catalog() -> list[dict]:
+    return list(PERMISSION_REGISTRY)

@@ -45,9 +45,11 @@ export default function TicketDetailPage() {
   });
 
   const { data: projects } = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["projects", "members-only"],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>("/projects/");
+      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>(
+        "/projects/?members_only=true"
+      );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
     },

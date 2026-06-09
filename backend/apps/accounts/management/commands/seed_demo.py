@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-from apps.accounts.models import Department
+from apps.accounts.models import Department, Permission
+from apps.accounts.rbac_seed import sync_permissions, sync_system_roles
 from apps.bugs.models import Bug
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task
@@ -13,25 +14,30 @@ class Command(BaseCommand):
     help = "Seed demo users, departments, project, tasks, and bugs"
 
     def handle(self, *args, **options):
+        permissions = sync_permissions()
+        roles = sync_system_roles(permissions)
+
         backend, _ = Department.objects.update_or_create(
             name="Backend",
-            defaults={
-                "description": "Backend engineering",
-                "can_create_tasks": False,
-                "can_create_bugs": False,
-                "can_edit_tasks": True,
-                "can_edit_bugs": True,
-            },
+            defaults={"description": "Backend engineering"},
         )
+        backend.extra_permissions.set(
+            [
+                permissions["can_edit_tasks"],
+                permissions["can_edit_bugs"],
+            ]
+        )
+
         qa_dept, _ = Department.objects.update_or_create(
             name="QA",
-            defaults={
-                "description": "Quality assurance",
-                "can_create_tasks": True,
-                "can_create_bugs": True,
-                "can_edit_tasks": False,
-                "can_edit_bugs": True,
-            },
+            defaults={"description": "Quality assurance"},
+        )
+        qa_dept.extra_permissions.set(
+            [
+                permissions["can_create_tasks"],
+                permissions["can_create_bugs"],
+                permissions["can_edit_bugs"],
+            ]
         )
 
         admin, created = User.objects.get_or_create(
@@ -40,7 +46,7 @@ class Command(BaseCommand):
                 "email": "admin@example.com",
                 "first_name": "System",
                 "last_name": "Admin",
-                "role": "admin",
+                "access_role": roles["admin"],
                 "is_staff": True,
                 "is_superuser": True,
             },
@@ -55,7 +61,7 @@ class Command(BaseCommand):
                 "email": "pm@example.com",
                 "first_name": "Pat",
                 "last_name": "Manager",
-                "role": "project_manager",
+                "access_role": roles["project_manager"],
             },
         )
         if _:
@@ -68,7 +74,7 @@ class Command(BaseCommand):
                 "email": "dev@example.com",
                 "first_name": "Dana",
                 "last_name": "Developer",
-                "role": "developer",
+                "access_role": roles["developer"],
                 "department": backend,
             },
         )
@@ -82,7 +88,7 @@ class Command(BaseCommand):
                 "email": "qa@example.com",
                 "first_name": "Quinn",
                 "last_name": "Tester",
-                "role": "qa",
+                "access_role": roles["qa"],
                 "department": qa_dept,
             },
         )

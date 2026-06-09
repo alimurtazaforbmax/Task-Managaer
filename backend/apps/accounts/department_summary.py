@@ -1,4 +1,4 @@
-from apps.accounts.models import Department, UserRole
+from apps.accounts.models import Department, Role
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
 from apps.bugs.constants import BUG_CLOSED_STATUSES
 from apps.bugs.models import Bug
@@ -8,17 +8,10 @@ from apps.tasks.serializers import TaskListSerializer
 
 TASK_CLOSED_STATUSES = ("done", "cancelled")
 
-PERMISSION_FIELDS = (
-    ("can_create_tasks", "Create tasks"),
-    ("can_create_bugs", "Create bugs"),
-    ("can_edit_tasks", "Edit tasks"),
-    ("can_edit_bugs", "Edit bugs"),
-)
-
 
 def build_department_summary(department: Department, request) -> dict:
     context = {"request": request}
-    members = department.members.select_related("department").order_by(
+    members = department.members.select_related("department", "access_role").order_by(
         "first_name", "last_name", "username"
     )
     member_ids = list(members.values_list("id", flat=True))
@@ -28,10 +21,11 @@ def build_department_summary(department: Department, request) -> dict:
     member_tasks = Task.objects.filter(assignees__in=member_ids).distinct()
     member_bugs = Bug.objects.filter(assignees__in=member_ids).distinct()
 
-    role_breakdown = {
-        role: members.filter(role=role).count() for role, _ in UserRole.choices
-    }
-    role_breakdown = {k: v for k, v in role_breakdown.items() if v > 0}
+    role_breakdown = {}
+    for role in Role.objects.all():
+        count = members.filter(access_role=role).count()
+        if count:
+            role_breakdown[role.slug] = count
 
     recent_tasks = (
         member_tasks.select_related("project")
@@ -46,11 +40,11 @@ def build_department_summary(department: Department, request) -> dict:
 
     permissions = [
         {
-            "key": key,
-            "label": label,
-            "enabled": bool(getattr(department, key)),
+            "key": perm.codename,
+            "label": perm.name,
+            "enabled": True,
         }
-        for key, label in PERMISSION_FIELDS
+        for perm in department.extra_permissions.all()
     ]
 
     return {

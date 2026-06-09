@@ -18,6 +18,8 @@ export interface User {
   first_name: string;
   last_name: string;
   role: string;
+  access_role?: number | null;
+  access_role_name?: string;
   department: number | null;
   department_name?: string;
   permissions?: UserPermissions;
@@ -38,6 +40,28 @@ export interface ProjectDocument {
   created_at: string;
 }
 
+export interface Permission {
+  id: number;
+  codename: string;
+  name: string;
+  category: string;
+  description: string;
+}
+
+export interface Role {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  is_system: boolean;
+  is_admin: boolean;
+  permissions_detail?: Permission[];
+  permission_ids?: number[];
+  user_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface DepartmentPermissions {
   can_create_tasks: boolean;
   can_create_bugs: boolean;
@@ -45,14 +69,30 @@ export interface DepartmentPermissions {
   can_edit_bugs: boolean;
 }
 
+export interface UserPermissions extends Record<string, boolean> {
+  can_create_tasks: boolean;
+  can_create_bugs: boolean;
+  can_edit_tasks: boolean;
+  can_edit_bugs: boolean;
+  can_delete_tasks: boolean;
+  can_delete_bugs: boolean;
+  can_create_tickets: boolean;
+  can_edit_tickets: boolean;
+  can_approve_tickets: boolean;
+  can_manage_projects: boolean;
+  can_view_all_projects: boolean;
+  can_manage_users: boolean;
+  can_manage_departments: boolean;
+  can_manage_roles: boolean;
+  can_view_audit_logs: boolean;
+}
+
 export interface Department {
   id: number;
   name: string;
   description: string;
-  can_create_tasks?: boolean;
-  can_create_bugs?: boolean;
-  can_edit_tasks?: boolean;
-  can_edit_bugs?: boolean;
+  permission_ids?: number[];
+  permissions_detail?: Permission[];
   member_count?: number;
   created_at?: string;
 }
@@ -84,8 +124,6 @@ export interface DepartmentSummary {
   recent_tasks: Task[];
   recent_bugs: Bug[];
 }
-
-export interface UserPermissions extends DepartmentPermissions {}
 
 export interface ProjectMember {
   id: number;
@@ -303,10 +341,9 @@ export interface Notification {
   created_at: string;
 }
 
-export const USER_ROLES = [
-  "admin",
-  "project_manager",
-  "developer",
-  "qa",
-  "viewer",
+export const DEPARTMENT_OVERLAY_PERMISSIONS = [
+  "can_create_tasks",
+  "can_create_bugs",
+  "can_edit_tasks",
+  "can_edit_bugs",
 ] as const;
