@@ -352,12 +352,16 @@ export function BugCreateForm({
         </label>
         <label className="block space-y-1">
           <span className="text-sm font-medium text-slate-700">Environment</span>
-          <input
-            placeholder="e.g. Chrome 120 / Windows 11"
+          <select
             className={INPUT}
             value={form.environment}
             onChange={(e) => onChange({ ...form, environment: e.target.value })}
-          />
+          >
+            <option value="">Select environment</option>
+            <option value="staging">Staging</option>
+            <option value="uat">UAT</option>
+            <option value="production">Production</option>
+          </select>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <BugSeveritySelect

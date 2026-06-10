@@ -29,6 +29,12 @@ class BugPriority(models.TextChoices):
     URGENT = "urgent", "Urgent"
 
 
+class BugEnvironment(models.TextChoices):
+    STAGING = "staging", "Staging"
+    UAT = "uat", "UAT"
+    PRODUCTION = "production", "Production"
+
+
 class Bug(models.Model):
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="bugs"
@@ -43,7 +49,11 @@ class Bug(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     steps_to_reproduce = models.TextField(blank=True)
-    environment = models.CharField(max_length=255, blank=True)
+    environment = models.CharField(
+        max_length=50,
+        choices=BugEnvironment.choices,
+        blank=True,
+    )
     status = models.CharField(
         max_length=32,
         choices=BugStatus.choices,

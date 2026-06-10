@@ -256,12 +256,16 @@ export default function BugDetailPage() {
             value={editForm.steps_to_reproduce}
             onChange={(e) => setEditForm({ ...editForm, steps_to_reproduce: e.target.value })}
           />
-          <input
+          <select
             className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
-            placeholder="Environment"
             value={editForm.environment}
             onChange={(e) => setEditForm({ ...editForm, environment: e.target.value })}
-          />
+          >
+            <option value="">Select environment</option>
+            <option value="staging">Staging</option>
+            <option value="uat">UAT</option>
+            <option value="production">Production</option>
+          </select>
           <div className="grid grid-cols-2 gap-3">
             <select
               className="border border-slate-200 rounded-lg px-3 py-2 shadow-sm"

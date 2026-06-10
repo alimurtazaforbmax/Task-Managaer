@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
 from apps.bugs.models import Bug
@@ -108,6 +109,22 @@ class BugUpdateSerializer(serializers.ModelSerializer):
             "estimated_hours",
             "tags",
         )
+
+    def validate_due_date(self, value):
+        """Ensure due_date is not in the past."""
+        if value and value < timezone.now().date():
+            raise serializers.ValidationError("Due date cannot be in the past.")
+        return value
+
+    def validate_assignees(self, value):
+        """Prevent users from assigning bugs to themselves."""
+        request = self.context.get("request")
+        if request and request.user:
+            if request.user.id in value.values_list('id', flat=True):
+                raise serializers.ValidationError(
+                    "You cannot assign bugs to yourself."
+                )
+        return value
 
 
 class BugListSerializer(serializers.ModelSerializer):
