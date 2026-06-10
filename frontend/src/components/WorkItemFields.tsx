@@ -1,3 +1,5 @@
+import { todayLocalIsoDate } from "../utils/dates";
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -5,6 +7,8 @@ interface Props {
 }
 
 export function DueDateField({ value, onChange, label = "Deadline" }: Props) {
+  const minDate = todayLocalIsoDate();
+
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -12,6 +16,7 @@ export function DueDateField({ value, onChange, label = "Deadline" }: Props) {
         type="date"
         className="w-full border rounded-lg px-3 py-2"
         value={value}
+        min={minDate}
         onChange={(e) => onChange(e.target.value)}
       />
     </div>

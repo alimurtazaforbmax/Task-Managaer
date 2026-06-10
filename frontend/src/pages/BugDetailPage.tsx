@@ -12,6 +12,7 @@ import WorkItemSection from "../components/workitem/WorkItemSection";
 import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
 import { useAuth } from "../context/AuthContext";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { todayLocalIsoDate } from "../utils/dates";
 import type { ApiResponse, Bug } from "../types";
 
 const BUG_STATUSES = [
@@ -69,11 +70,13 @@ export default function BugDetailPage() {
         environment: bug.environment,
         severity: bug.severity,
         priority: bug.priority,
-        assignees: (bug.assignees ?? []).filter((id) => memberIds.has(id)),
+        assignees: (bug.assignees ?? []).filter(
+          (id) => memberIds.has(id) && id !== user?.id
+        ),
         due_date: bug.due_date ?? "",
       });
     }
-  }, [bug, showEdit, projectMembers]);
+  }, [bug, showEdit, projectMembers, user?.id]);
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -286,6 +289,16 @@ export default function BugDetailPage() {
               ))}
             </select>
           </div>
+          <label className="block space-y-1">
+            <span className="text-sm font-medium text-slate-700">Deadline</span>
+            <input
+              type="date"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+              value={editForm.due_date}
+              min={todayLocalIsoDate()}
+              onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
+            />
+          </label>
           <MultiUserSelect
             label="Assignees"
             users={assignableUsers}
@@ -295,6 +308,7 @@ export default function BugDetailPage() {
             emptyMessage={
               membersLoading ? "Loading project members..." : "No project members available"
             }
+            excludeUserIds={user ? [user.id] : []}
           />
           <button type="submit" className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-amber-700">
             Save changes

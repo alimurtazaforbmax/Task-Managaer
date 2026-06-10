@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
 import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { todayLocalIsoDate } from "../utils/dates";
 import type { ApiResponse, Task, User } from "../types";
 
 const TASK_STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"];
@@ -70,14 +71,16 @@ export default function TaskDetailPage() {
         description: task.description,
         priority: task.priority,
         task_type: task.task_type,
-        assignees: (task.assignees ?? []).filter((id) => memberIds.has(id)),
+        assignees: (task.assignees ?? []).filter(
+          (id) => memberIds.has(id) && id !== user?.id
+        ),
         due_date: task.due_date ?? "",
         tags: task.tags ?? "",
         feature: task.feature ? String(task.feature) : "",
         sprint: task.sprint ? String(task.sprint) : "",
       });
     }
-  }, [task, showEdit, projectMembers]);
+  }, [task, showEdit, projectMembers, user?.id]);
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -246,6 +249,7 @@ export default function TaskDetailPage() {
               emptyMessage={
                 membersLoading ? "Loading project members..." : "No project members available"
               }
+              excludeUserIds={user ? [user.id] : []}
             />
           ) : (
             <p className="text-sm text-slate-500">
@@ -288,6 +292,7 @@ export default function TaskDetailPage() {
             type="date"
             className="border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
             value={editForm.due_date}
+            min={todayLocalIsoDate()}
             onChange={(e) => setEditForm({ ...editForm, due_date: e.target.value })}
           />
           <button type="submit" className="bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-sky-700">

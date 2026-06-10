@@ -84,6 +84,8 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         task = serializer.save(reporter=self.request.user)
         if not user_has_permission(self.request.user, "can_assign_tasks"):
             task.assignees.clear()
+        elif task.assignees.filter(id=self.request.user.id).exists():
+            task.assignees.remove(self.request.user)
         log_activity(
             actor=self.request.user,
             action="task_created",
@@ -110,6 +112,11 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         if not user_has_permission(request.user, "can_assign_tasks"):
             serializer.validated_data.pop("assignees", None)
+        elif "assignees" in serializer.validated_data:
+            assignees = serializer.validated_data["assignees"]
+            serializer.validated_data["assignees"] = [
+                user for user in assignees if user.id != request.user.id
+            ]
         serializer.save()
         task.refresh_from_db()
         record_audit_log(

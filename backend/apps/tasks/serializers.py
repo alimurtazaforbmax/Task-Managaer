@@ -1,7 +1,7 @@
 from rest_framework import serializers
-from django.utils import timezone
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
+from apps.core.work_item_validators import AssigneeDueDateValidationMixin
 from apps.core.serializers import (
     ActivityLogSerializer,
     AttachmentSerializer,
@@ -13,7 +13,8 @@ from apps.core.permissions import can_change_status
 from apps.tasks.models import Task
 
 
-class TaskSerializer(serializers.ModelSerializer):
+class TaskSerializer(AssigneeDueDateValidationMixin, serializers.ModelSerializer):
+    work_item_label = "tasks"
     assignees_detail = UserSerializer(source="assignees", many=True, read_only=True)
     assignee_department_detail = DepartmentSerializer(
         source="assignee_department", read_only=True
@@ -97,7 +98,9 @@ class TaskSerializer(serializers.ModelSerializer):
         return can_change_status(request.user, obj)
 
 
-class TaskUpdateSerializer(serializers.ModelSerializer):
+class TaskUpdateSerializer(AssigneeDueDateValidationMixin, serializers.ModelSerializer):
+    work_item_label = "tasks"
+
     class Meta:
         model = Task
         fields = (
@@ -113,22 +116,6 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
             "estimated_hours",
             "tags",
         )
-
-    def validate_due_date(self, value):
-        """Ensure due_date is not in the past."""
-        if value and value < timezone.now().date():
-            raise serializers.ValidationError("Due date cannot be in the past.")
-        return value
-
-    def validate_assignees(self, value):
-        """Prevent users from assigning tasks to themselves."""
-        request = self.context.get("request")
-        if request and request.user:
-            if request.user.id in value.values_list('id', flat=True):
-                raise serializers.ValidationError(
-                    "You cannot assign tasks to yourself."
-                )
-        return value
 
 
 class TaskListSerializer(serializers.ModelSerializer):

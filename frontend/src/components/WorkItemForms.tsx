@@ -2,6 +2,7 @@ import { FormEvent, useState, type ReactNode } from "react";
 import FileUploadField from "./FileUploadField";
 import MultiUserSelect from "./MultiUserSelect";
 import { BugPrioritySelect, BugSeveritySelect, DueDateField, TaskPrioritySelect } from "./WorkItemFields";
+import { useAuth } from "../context/AuthContext";
 import type { User } from "../types";
 
 export interface TaskFormState {
@@ -108,7 +109,9 @@ export function TaskCreateForm({
   assigneesLoading = false,
   canAssign = true,
 }: TaskFormProps) {
+  const { user } = useAuth();
   const [attachments, setAttachments] = useState<File[]>([]);
+  const excludeSelfIds = user ? [user.id] : [];
   const assignDisabled = Boolean(showProjectSelect && !projectId);
   const assignEmptyMessage = assignDisabled
     ? "Select a project first"
@@ -235,6 +238,7 @@ export function TaskCreateForm({
             onChange={(assignees) => onChange({ ...form, assignees })}
             disabled={assignDisabled}
             emptyMessage={assignEmptyMessage}
+            excludeUserIds={excludeSelfIds}
           />
         ) : (
           <p className="text-sm text-slate-500">
@@ -281,7 +285,9 @@ export function BugCreateForm({
   onProjectChange,
   assigneesLoading = false,
 }: BugFormProps) {
+  const { user } = useAuth();
   const [attachments, setAttachments] = useState<File[]>([]);
+  const excludeSelfIds = user ? [user.id] : [];
   const assignDisabled = Boolean(showProjectSelect && !projectId);
   const assignEmptyMessage = assignDisabled
     ? "Select a project first"
@@ -384,6 +390,7 @@ export function BugCreateForm({
           onChange={(assignees) => onChange({ ...form, assignees })}
           disabled={assignDisabled}
           emptyMessage={assignEmptyMessage}
+          excludeUserIds={excludeSelfIds}
         />
         <FileUploadField
           files={attachments}

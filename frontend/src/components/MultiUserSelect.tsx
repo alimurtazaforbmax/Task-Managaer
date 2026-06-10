@@ -7,6 +7,7 @@ interface Props {
   label?: string;
   disabled?: boolean;
   emptyMessage?: string;
+  excludeUserIds?: number[];
 }
 
 export default function MultiUserSelect({
@@ -16,12 +17,18 @@ export default function MultiUserSelect({
   label,
   disabled = false,
   emptyMessage = "No users available",
+  excludeUserIds = [],
 }: Props) {
+  const excluded = new Set(excludeUserIds);
+  const visibleUsers = users.filter((u) => !excluded.has(u.id));
+  const visibleSelected = selected.filter((id) => !excluded.has(id));
+
   const toggle = (id: number) => {
-    if (selected.includes(id)) {
-      onChange(selected.filter((x) => x !== id));
+    if (excluded.has(id)) return;
+    if (visibleSelected.includes(id)) {
+      onChange(visibleSelected.filter((x) => x !== id));
     } else {
-      onChange([...selected, id]);
+      onChange([...visibleSelected, id]);
     }
   };
 
@@ -33,17 +40,17 @@ export default function MultiUserSelect({
           disabled ? "bg-slate-50 opacity-60 pointer-events-none" : ""
         }`}
       >
-        {users.length === 0 ? (
+        {visibleUsers.length === 0 ? (
           <p className="text-sm text-slate-400">{emptyMessage}</p>
         ) : (
-          users.map((u) => (
+          visibleUsers.map((u) => (
             <label
               key={u.id}
               className="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-50 p-1 rounded"
             >
               <input
                 type="checkbox"
-                checked={selected.includes(u.id)}
+                checked={visibleSelected.includes(u.id)}
                 onChange={() => toggle(u.id)}
                 disabled={disabled}
               />

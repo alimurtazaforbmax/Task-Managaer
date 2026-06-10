@@ -83,6 +83,8 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         bug = serializer.save(reporter=self.request.user)
+        if bug.assignees.filter(id=self.request.user.id).exists():
+            bug.assignees.remove(self.request.user)
         log_activity(
             actor=self.request.user,
             action="bug_created",
@@ -114,6 +116,11 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         serializer = self.get_serializer(bug, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        if "assignees" in serializer.validated_data:
+            assignees = serializer.validated_data["assignees"]
+            serializer.validated_data["assignees"] = [
+                user for user in assignees if user.id != request.user.id
+            ]
         serializer.save()
         record_audit_log(
             actor=request.user,
