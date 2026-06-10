@@ -10,17 +10,26 @@ import WorkItemComments from "../components/workitem/WorkItemComments";
 import WorkItemHero from "../components/workitem/WorkItemHero";
 import WorkItemSection from "../components/workitem/WorkItemSection";
 import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
+import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
-import { useUsers } from "../hooks/useUsers";
-import type { ApiResponse, Task } from "../types";
+import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import type { ApiResponse, Task, User } from "../types";
 
 const TASK_STATUSES = ["backlog", "todo", "in_progress", "in_review", "done", "blocked", "cancelled"];
+
+function formatUserName(u?: User) {
+  if (!u) return "Unknown";
+  const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+  return name || u.username;
+}
 
 export default function TaskDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const permissions = usePermissions();
   const qc = useQueryClient();
-  const { data: users } = useUsers();
   const [comment, setComment] = useState("");
   const [minutes, setMinutes] = useState("");
   const [showEdit, setShowEdit] = useState(false);
@@ -50,22 +59,25 @@ export default function TaskDetailPage() {
 
   const { data: features } = useProjectFeatures(task?.project);
   const { data: sprints } = useProjectSprints(task?.project);
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(task?.project);
+  const assignableUsers = projectMembersToUsers(projectMembers);
 
   useEffect(() => {
     if (task && showEdit) {
+      const memberIds = new Set((projectMembers ?? []).map((m) => m.user));
       setEditForm({
         title: task.title,
         description: task.description,
         priority: task.priority,
         task_type: task.task_type,
-        assignees: task.assignees ?? [],
+        assignees: (task.assignees ?? []).filter((id) => memberIds.has(id)),
         due_date: task.due_date ?? "",
         tags: task.tags ?? "",
         feature: task.feature ? String(task.feature) : "",
         sprint: task.sprint ? String(task.sprint) : "",
       });
     }
-  }, [task, showEdit]);
+  }, [task, showEdit, projectMembers]);
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -146,6 +158,7 @@ export default function TaskDetailPage() {
   if (!task) return <p className="text-slate-400">Loading...</p>;
 
   const totalMinutes = task.time_entries?.reduce((sum, e) => sum + e.minutes, 0) ?? 0;
+  const canLogTime = Boolean(user && task.assignees?.includes(user.id));
 
   return (
     <PageContainer size="md">
@@ -223,12 +236,22 @@ export default function TaskDetailPage() {
               ))}
             </select>
           </div>
-          <MultiUserSelect
-            label="Assignees"
-            users={users ?? []}
-            selected={editForm.assignees}
-            onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
-          />
+          {permissions.can_assign_tasks ? (
+            <MultiUserSelect
+              label="Assignees"
+              users={assignableUsers}
+              selected={editForm.assignees}
+              onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
+              disabled={membersLoading}
+              emptyMessage={
+                membersLoading ? "Loading project members..." : "No project members available"
+              }
+            />
+          ) : (
+            <p className="text-sm text-slate-500">
+              Assignees can only be changed by project leads or managers.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block space-y-1">
               <span className="text-sm font-medium text-slate-700">Feature (optional)</span>
@@ -299,38 +322,50 @@ export default function TaskDetailPage() {
         subtitle={totalMinutes > 0 ? `${(totalMinutes / 60).toFixed(1)} hours logged total` : "No time logged yet"}
         accent="task"
       >
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            logTime.mutate({
-              minutes: Number(minutes),
-              work_date: new Date().toISOString().slice(0, 10),
-              note: "",
-            });
-          }}
-        >
-          <input
-            type="number"
-            min={1}
-            placeholder="Minutes"
-            className="border border-slate-200 rounded-lg px-3 py-2 w-32 shadow-sm"
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
-          />
-          <button type="submit" className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-900">
-            Log time
-          </button>
-        </form>
+        {canLogTime ? (
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              logTime.mutate({
+                minutes: Number(minutes),
+                work_date: new Date().toISOString().slice(0, 10),
+                note: "",
+              });
+            }}
+          >
+            <input
+              type="number"
+              min={1}
+              placeholder="Minutes"
+              className="border border-slate-200 rounded-lg px-3 py-2 w-32 shadow-sm"
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={logTime.isPending}
+              className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-900 disabled:opacity-50"
+            >
+              Log time
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-slate-500">
+            Only team members assigned to this task can log time.
+          </p>
+        )}
         {task.time_entries && task.time_entries.length > 0 && (
-          <ul className="mt-4 space-y-2">
+          <ul className={`space-y-2 ${canLogTime ? "mt-4" : ""}`}>
             {task.time_entries.map((entry) => (
               <li
                 key={entry.id}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
               >
-                <span className="font-medium text-slate-800">{entry.minutes} min</span>
-                <span className="text-slate-500">{entry.work_date}</span>
+                <p className="font-medium text-slate-800">{entry.minutes} min</p>
+                <p className="text-slate-500 mt-0.5">
+                  {formatUserName(entry.user_detail)} · {entry.work_date}
+                </p>
               </li>
             ))}
           </ul>

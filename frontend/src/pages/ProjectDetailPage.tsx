@@ -366,6 +366,7 @@ export default function ProjectDetailPage() {
               onChange={setTaskForm}
               onSubmit={(files) => createTask.mutate(files)}
               isSubmitting={createTask.isPending}
+              canAssign={permissions.can_assign_tasks}
               features={features?.map((f) => ({ id: f.id, title: f.title }))}
               sprints={sprints?.map((s) => ({ id: s.id, name: s.name }))}
             />

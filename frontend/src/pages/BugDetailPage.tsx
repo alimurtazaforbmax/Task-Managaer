@@ -11,7 +11,7 @@ import WorkItemHero from "../components/workitem/WorkItemHero";
 import WorkItemSection from "../components/workitem/WorkItemSection";
 import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
 import { useAuth } from "../context/AuthContext";
-import { useUsers } from "../hooks/useUsers";
+import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
 import type { ApiResponse, Bug } from "../types";
 
 const BUG_STATUSES = [
@@ -27,7 +27,6 @@ export default function BugDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: users } = useUsers();
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comment, setComment] = useState("");
@@ -57,8 +56,12 @@ export default function BugDetailPage() {
     },
   });
 
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(bug?.project);
+  const assignableUsers = projectMembersToUsers(projectMembers);
+
   useEffect(() => {
     if (bug && showEdit) {
+      const memberIds = new Set((projectMembers ?? []).map((m) => m.user));
       setEditForm({
         title: bug.title,
         description: bug.description,
@@ -66,11 +69,11 @@ export default function BugDetailPage() {
         environment: bug.environment,
         severity: bug.severity,
         priority: bug.priority,
-        assignees: bug.assignees ?? [],
+        assignees: (bug.assignees ?? []).filter((id) => memberIds.has(id)),
         due_date: bug.due_date ?? "",
       });
     }
-  }, [bug, showEdit]);
+  }, [bug, showEdit, projectMembers]);
 
   const statusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -281,9 +284,13 @@ export default function BugDetailPage() {
           </div>
           <MultiUserSelect
             label="Assignees"
-            users={users ?? []}
+            users={assignableUsers}
             selected={editForm.assignees}
             onChange={(ids) => setEditForm({ ...editForm, assignees: ids })}
+            disabled={membersLoading}
+            emptyMessage={
+              membersLoading ? "Loading project members..." : "No project members available"
+            }
           />
           <button type="submit" className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-amber-700">
             Save changes

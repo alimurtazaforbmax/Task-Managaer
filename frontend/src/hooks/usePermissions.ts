@@ -5,6 +5,7 @@ const DEFAULT: UserPermissions = {
   can_create_tasks: false,
   can_create_bugs: false,
   can_edit_tasks: false,
+  can_assign_tasks: false,
   can_edit_bugs: false,
   can_delete_tasks: false,
   can_delete_bugs: false,

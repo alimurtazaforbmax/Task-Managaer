@@ -88,6 +88,8 @@ interface TaskFormProps {
   onProjectChange?: (id: string) => void;
   features?: { id: number; title: string }[];
   sprints?: { id: number; name: string }[];
+  assigneesLoading?: boolean;
+  canAssign?: boolean;
 }
 
 export function TaskCreateForm({
@@ -103,8 +105,16 @@ export function TaskCreateForm({
   onProjectChange,
   features,
   sprints,
+  assigneesLoading = false,
+  canAssign = true,
 }: TaskFormProps) {
   const [attachments, setAttachments] = useState<File[]>([]);
+  const assignDisabled = Boolean(showProjectSelect && !projectId);
+  const assignEmptyMessage = assignDisabled
+    ? "Select a project first"
+    : assigneesLoading
+      ? "Loading project members..."
+      : "No project members available";
 
   return (
     <CreateFormShell
@@ -217,12 +227,20 @@ export function TaskCreateForm({
           value={form.due_date}
           onChange={(due_date) => onChange({ ...form, due_date })}
         />
-        <MultiUserSelect
-          label="Assign to"
-          users={users}
-          selected={form.assignees}
-          onChange={(assignees) => onChange({ ...form, assignees })}
-        />
+        {canAssign ? (
+          <MultiUserSelect
+            label="Assign to"
+            users={users}
+            selected={form.assignees}
+            onChange={(assignees) => onChange({ ...form, assignees })}
+            disabled={assignDisabled}
+            emptyMessage={assignEmptyMessage}
+          />
+        ) : (
+          <p className="text-sm text-slate-500">
+            Assignees can only be set by project leads or managers.
+          </p>
+        )}
         <FileUploadField files={attachments} onChange={setAttachments} />
         <button
           type="submit"
@@ -247,6 +265,7 @@ interface BugFormProps {
   projects?: { id: number; name: string }[];
   projectId?: string;
   onProjectChange?: (id: string) => void;
+  assigneesLoading?: boolean;
 }
 
 export function BugCreateForm({
@@ -260,8 +279,15 @@ export function BugCreateForm({
   projects,
   projectId,
   onProjectChange,
+  assigneesLoading = false,
 }: BugFormProps) {
   const [attachments, setAttachments] = useState<File[]>([]);
+  const assignDisabled = Boolean(showProjectSelect && !projectId);
+  const assignEmptyMessage = assignDisabled
+    ? "Select a project first"
+    : assigneesLoading
+      ? "Loading project members..."
+      : "No project members available";
 
   return (
     <CreateFormShell
@@ -352,6 +378,8 @@ export function BugCreateForm({
           users={users}
           selected={form.assignees}
           onChange={(assignees) => onChange({ ...form, assignees })}
+          disabled={assignDisabled}
+          emptyMessage={assignEmptyMessage}
         />
         <FileUploadField
           files={attachments}

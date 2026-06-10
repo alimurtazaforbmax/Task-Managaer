@@ -5,7 +5,7 @@ import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { BugCreateForm, emptyBugForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
-import { useUsers } from "../hooks/useUsers";
+import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import type { ApiResponse, Bug, Paginated, Project } from "../types";
 
@@ -14,8 +14,10 @@ export default function BugsPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [projectId, setProjectId] = useState("");
-  const { data: users } = useUsers();
   const [form, setForm] = useState(emptyBugForm);
+
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
+  const assignableUsers = projectMembersToUsers(projectMembers);
 
   const { data: projects } = useQuery({
     queryKey: ["projects"],
@@ -79,14 +81,18 @@ export default function BugsPage() {
         <div className="mt-6">
           <BugCreateForm
             form={form}
-            users={users ?? []}
+            users={assignableUsers}
             onChange={setForm}
             onSubmit={(files) => createBug.mutate(files)}
             isSubmitting={createBug.isPending}
+            assigneesLoading={membersLoading}
             showProjectSelect
             projects={projects}
             projectId={projectId}
-            onProjectChange={setProjectId}
+            onProjectChange={(pid) => {
+              setProjectId(pid);
+              setForm((f) => ({ ...f, assignees: [] }));
+            }}
           />
         </div>
       )}

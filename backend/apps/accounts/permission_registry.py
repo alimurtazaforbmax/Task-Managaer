@@ -14,6 +14,12 @@ PERMISSION_REGISTRY: list[dict[str, str]] = [
         "description": "Edit any task details (not only own).",
     },
     {
+        "codename": "can_assign_tasks",
+        "name": "Assign tasks",
+        "category": "Tasks",
+        "description": "Assign tasks to team members when creating or editing.",
+    },
+    {
         "codename": "can_delete_tasks",
         "name": "Delete tasks",
         "category": "Tasks",
@@ -147,12 +153,12 @@ SYSTEM_ROLES: list[dict] = [
         "permissions": [
             "can_create_tasks",
             "can_edit_tasks",
+            "can_assign_tasks",
             "can_create_bugs",
             "can_edit_bugs",
             "can_create_tickets",
             "can_edit_tickets",
             "can_approve_tickets",
-            "can_view_all_projects",
             "can_create_features",
             "can_edit_features",
             "can_delete_features",
@@ -170,6 +176,7 @@ SYSTEM_ROLES: list[dict] = [
         "permissions": [
             "can_create_tasks",
             "can_edit_tasks",
+            "can_assign_tasks",
             "can_create_bugs",
             "can_edit_bugs",
             "can_create_tickets",

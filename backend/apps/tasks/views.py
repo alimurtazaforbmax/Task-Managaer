@@ -82,6 +82,8 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         task = serializer.save(reporter=self.request.user)
+        if not user_has_permission(self.request.user, "can_assign_tasks"):
+            task.assignees.clear()
         log_activity(
             actor=self.request.user,
             action="task_created",
@@ -106,6 +108,8 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         serializer = self.get_serializer(task, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        if not user_has_permission(request.user, "can_assign_tasks"):
+            serializer.validated_data.pop("assignees", None)
         serializer.save()
         task.refresh_from_db()
         record_audit_log(
@@ -265,11 +269,16 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 task.time_entries.select_related("user"), many=True
             )
             return success_response(data=serializer.data)
+        if not task.assignees.filter(id=request.user.id).exists():
+            return error_response(
+                "Only assigned team members can log time on this task.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = TimeEntrySerializer(data={**request.data, "task": task.id})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        entry = serializer.save(user=request.user)
         return success_response(
-            data=serializer.data,
+            data=TimeEntrySerializer(entry).data,
             message="Time logged.",
             status=status.HTTP_201_CREATED,
         )

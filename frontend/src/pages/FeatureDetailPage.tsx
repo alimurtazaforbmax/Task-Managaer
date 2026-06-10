@@ -266,6 +266,7 @@ export default function FeatureDetailPage() {
               onChange={setTaskForm}
               onSubmit={(files) => createTask.mutate(files)}
               isSubmitting={createTask.isPending}
+              canAssign={permissions.can_assign_tasks}
               submitLabel="Create task for this feature"
               features={[{ id: feature.id, title: feature.title }]}
               sprints={sprints?.map((s) => ({ id: s.id, name: s.name }))}

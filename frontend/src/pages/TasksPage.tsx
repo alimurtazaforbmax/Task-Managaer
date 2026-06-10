@@ -6,7 +6,7 @@ import WorkItemRow from "../components/WorkItemRow";
 import { emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
 import { usePermissions } from "../hooks/usePermissions";
 import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
-import { useUsers } from "../hooks/useUsers";
+import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import type { ApiResponse, Paginated, Project, Task } from "../types";
 
@@ -15,8 +15,10 @@ export default function TasksPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [projectId, setProjectId] = useState("");
-  const { data: users } = useUsers();
   const [form, setForm] = useState(emptyTaskForm);
+
+  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
+  const assignableUsers = projectMembersToUsers(projectMembers);
 
   const { data: features } = useProjectFeatures(projectId);
   const { data: sprints } = useProjectSprints(projectId);
@@ -87,16 +89,18 @@ export default function TasksPage() {
         <div className="mt-6">
           <TaskCreateForm
             form={form}
-            users={users ?? []}
+            users={assignableUsers}
             onChange={setForm}
             onSubmit={(files) => createTask.mutate(files)}
             isSubmitting={createTask.isPending}
+            canAssign={permissions.can_assign_tasks}
+            assigneesLoading={membersLoading}
             showProjectSelect
             projects={projects}
             projectId={projectId}
             onProjectChange={(pid) => {
               setProjectId(pid);
-              setForm((f) => ({ ...f, feature: "", sprint: "" }));
+              setForm((f) => ({ ...f, feature: "", sprint: "", assignees: [] }));
             }}
             features={features?.map((f) => ({ id: f.id, title: f.title }))}
             sprints={sprints?.map((s) => ({ id: s.id, name: s.name }))}

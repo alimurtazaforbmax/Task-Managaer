@@ -73,6 +73,7 @@ export interface UserPermissions extends Record<string, boolean> {
   can_create_tasks: boolean;
   can_create_bugs: boolean;
   can_edit_tasks: boolean;
+  can_assign_tasks: boolean;
   can_edit_bugs: boolean;
   can_delete_tasks: boolean;
   can_delete_bugs: boolean;
@@ -194,6 +195,15 @@ export interface Sprint {
   updated_at?: string;
 }
 
+export interface TimeEntry {
+  id: number;
+  minutes: number;
+  work_date: string;
+  note?: string;
+  user?: number;
+  user_detail?: User;
+}
+
 export interface Task {
   id: number;
   project: number;
@@ -219,7 +229,7 @@ export interface Task {
   tags?: string;
   comments?: Comment[];
   attachments?: Attachment[];
-  time_entries?: { id: number; minutes: number; work_date: string }[];
+  time_entries?: TimeEntry[];
   updated_at?: string;
 }
 
