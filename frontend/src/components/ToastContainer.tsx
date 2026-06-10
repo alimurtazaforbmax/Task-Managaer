@@ -2,6 +2,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { markNotificationRead } from "../api/notifications";
 import { useToast } from "../context/ToastContext";
+import {
+  isExternalNotificationLink,
+  resolveNotificationPath,
+} from "../utils/notificationLink";
 
 export default function ToastContainer() {
   const { toasts, dismissToast } = useToast();
@@ -10,7 +14,10 @@ export default function ToastContainer() {
 
   const markRead = useMutation({
     mutationFn: (id: number) => markNotificationRead(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
   });
 
   if (!toasts.length) return null;
@@ -30,7 +37,16 @@ export default function ToastContainer() {
             if (toast.notificationId) {
               markRead.mutate(toast.notificationId);
             }
-            if (toast.link) navigate(toast.link);
+            if (toast.link) {
+              const path = resolveNotificationPath(toast.link);
+              if (path) {
+                if (isExternalNotificationLink(path)) {
+                  globalThis.location.assign(path);
+                } else {
+                  navigate(path);
+                }
+              }
+            }
           }}
           className="pointer-events-auto text-left bg-white border border-brand-200 shadow-lg rounded-xl p-4 hover:border-brand-300 transition-colors animate-[slideIn_0.25s_ease-out]"
         >

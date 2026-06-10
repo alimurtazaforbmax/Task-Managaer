@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { markAllNotificationsRead } from "../api/notifications";
 import NotificationListItem from "./NotificationListItem";
@@ -23,7 +22,6 @@ export default function TopBar({ onLogout }: TopBarProps) {
   const { data: notificationData, isFetching } = useNotifications(10);
   const { data: unreadTotal = 0 } = useUnreadNotifications();
   const notifications = notificationData?.results ?? [];
-  const unreadInList = notifications.filter((n) => !n.is_read).length;
 
   const markAllRead = useMutation({
     mutationFn: markAllNotificationsRead,
@@ -88,16 +86,14 @@ export default function TopBar({ onLogout }: TopBarProps) {
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <h2 className="font-semibold text-slate-900">Notifications</h2>
               <div className="flex items-center gap-2">
-                {unreadInList > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => markAllRead.mutate()}
-                    disabled={markAllRead.isPending}
-                    className="text-xs text-brand-600 hover:text-brand-700 font-medium disabled:opacity-50"
-                  >
-                    Mark all read
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => markAllRead.mutate()}
+                  disabled={markAllRead.isPending || unreadTotal === 0}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium disabled:opacity-50 disabled:text-slate-400"
+                >
+                  Mark all read
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -116,18 +112,13 @@ export default function TopBar({ onLogout }: TopBarProps) {
                 <p className="text-sm text-slate-400 px-2 py-4 text-center">No notifications yet.</p>
               ) : (
                 notifications.map((n) => (
-                  <NotificationListItem key={n.id} notification={n} />
+                  <NotificationListItem
+                    key={n.id}
+                    notification={n}
+                    onAction={closeMenus}
+                  />
                 ))
               )}
-            </div>
-            <div className="border-t border-slate-100 px-4 py-2.5">
-              <Link
-                to="/"
-                onClick={closeMenus}
-                className="text-sm font-medium text-brand-600 hover:text-brand-700"
-              >
-                View dashboard →
-              </Link>
             </div>
           </div>
         )}

@@ -25,6 +25,7 @@ export function useMarkNotificationFromUrl(enabled: boolean) {
 
     void markNotificationRead(id).then(() => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
     });
 
     params.delete("notificationId");
