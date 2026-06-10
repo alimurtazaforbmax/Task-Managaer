@@ -106,6 +106,54 @@ def notify_user(*, user, title: str, message: str, link: str = ""):
     )
 
 
+def work_item_stakeholder_ids(
+    obj, actor, *, include_prior_commenters: bool = False
+) -> set[int]:
+    """Reporter and assignees; optionally prior commenters — never the whole project."""
+    recipient_ids: set[int] = set()
+    if getattr(obj, "reporter_id", None) and obj.reporter_id != actor.id:
+        recipient_ids.add(obj.reporter_id)
+    for user_id in obj.assignees.values_list("id", flat=True):
+        if user_id != actor.id:
+            recipient_ids.add(user_id)
+    if include_prior_commenters:
+        for user_id in (
+            obj.comments.exclude(author_id=actor.id)
+            .values_list("author_id", flat=True)
+            .distinct()
+        ):
+            if user_id:
+                recipient_ids.add(user_id)
+    return recipient_ids
+
+
+def notify_work_item_comment(*, obj, actor, comment_text: str) -> None:
+    from apps.tasks.models import Task
+
+    User = get_user_model()
+    is_task = isinstance(obj, Task)
+    label = "Task" if is_task else "Bug"
+    link = f"/tasks/{obj.id}" if is_task else f"/bugs/{obj.id}"
+    actor_name = actor.get_full_name() or actor.username
+    preview = comment_text.strip()
+    if len(preview) > 120:
+        preview = f"{preview[:117]}..."
+    message = (
+        f'{actor_name} commented on {label.lower()} "{obj.title}": {preview}'
+    )
+
+    for user_id in work_item_stakeholder_ids(obj, actor, include_prior_commenters=True):
+        try:
+            notify_user(
+                user=User.objects.get(pk=user_id),
+                title=f"New comment on {label.lower()}",
+                message=message,
+                link=link,
+            )
+        except User.DoesNotExist:
+            continue
+
+
 def notify_status_change(*, obj, actor, old_status: str, new_status: str) -> None:
     from apps.tasks.models import Task
 
@@ -120,14 +168,7 @@ def notify_status_change(*, obj, actor, old_status: str, new_status: str) -> Non
         f"by {actor_name}."
     )
 
-    recipient_ids = set()
-    if obj.reporter_id and obj.reporter_id != actor.id:
-        recipient_ids.add(obj.reporter_id)
-    for user_id in obj.assignees.values_list("id", flat=True):
-        if user_id != actor.id:
-            recipient_ids.add(user_id)
-
-    for user_id in recipient_ids:
+    for user_id in work_item_stakeholder_ids(obj, actor):
         try:
             notify_user(
                 user=User.objects.get(pk=user_id),

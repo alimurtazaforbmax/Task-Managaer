@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.permissions_util import user_has_permission
 from apps.core.mixins import StandardResponseMixin, user_project_ids
-from apps.core.models import Attachment, AttachmentType, Comment
+from apps.core.models import Attachment, AttachmentType, Comment, CommentType
 from apps.core.permissions import (
     can_change_status,
     can_delete_attachment,
@@ -18,7 +18,12 @@ from apps.core.serializers import (
     CommentSerializer,
     TimeEntrySerializer,
 )
-from apps.core.services import log_activity, notify_status_change, record_audit_log
+from apps.core.services import (
+    log_activity,
+    notify_status_change,
+    notify_work_item_comment,
+    record_audit_log,
+)
 from apps.core.utils import validate_file_size, validate_mime_type
 from apps.tasks.models import Task
 from apps.tasks.serializers import (
@@ -199,7 +204,13 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             return success_response(data=data)
         serializer = CommentSerializer(data={**request.data, "task": task.id})
         serializer.is_valid(raise_exception=True)
-        serializer.save(author=request.user)
+        comment = serializer.save(author=request.user)
+        if comment.comment_type == CommentType.GENERAL:
+            notify_work_item_comment(
+                obj=task,
+                actor=request.user,
+                comment_text=comment.text,
+            )
         return success_response(
             data=serializer.data,
             message="Comment added.",
