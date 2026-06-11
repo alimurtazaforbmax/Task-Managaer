@@ -13,7 +13,7 @@ import WorkItemStatusPicker from "../components/workitem/WorkItemStatusPicker";
 import { useAuth } from "../context/AuthContext";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
 import { todayLocalIsoDate } from "../utils/dates";
-import type { ApiResponse, Bug } from "../types";
+import type { ApiResponse, Bug, User } from "../types";
 
 const BUG_STATUSES = [
   "open",
@@ -24,6 +24,19 @@ const BUG_STATUSES = [
   "closed",
 ];
 
+const BUG_STATUSES_REQUIRING_ASSIGNEE = new Set([
+  "in_progress",
+  "fixed",
+  "qa_verification",
+  "closed",
+]);
+
+function formatUserName(u?: User) {
+  if (!u) return "Unknown";
+  const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+  return name || u.username;
+}
+
 export default function BugDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -31,6 +44,7 @@ export default function BugDetailPage() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [comment, setComment] = useState("");
+  const [minutes, setMinutes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -134,6 +148,15 @@ export default function BugDetailPage() {
     },
   });
 
+  const logTime = useMutation({
+    mutationFn: (data: { minutes: number; work_date: string; note: string }) =>
+      api.post(`/bugs/${id}/time-entries/`, data),
+    onSuccess: () => {
+      setMinutes("");
+      qc.invalidateQueries({ queryKey: ["bug", id] });
+    },
+  });
+
   const addComment = useMutation({
     mutationFn: (text: string) =>
       api.post(`/bugs/${id}/comments/`, { text, comment_type: "general" }),
@@ -186,6 +209,9 @@ export default function BugDetailPage() {
 
   const canReject = bug.can_change_status && bug.status !== "rejected";
   const canDeleteFile = bug.is_owner || user?.role === "admin";
+  const totalMinutes = bug.time_entries?.reduce((sum, e) => sum + e.minutes, 0) ?? 0;
+  const canLogTime = Boolean(user && bug.assignees?.includes(user.id));
+  const hasAssignees = (bug.assignees?.length ?? 0) > 0;
 
   return (
     <PageContainer size="md">
@@ -328,13 +354,29 @@ export default function BugDetailPage() {
         </p>
       )}
 
+      {!hasAssignees && BUG_STATUSES_REQUIRING_ASSIGNEE.has(bug.status) && (
+        <p className="text-sm rounded-xl px-4 py-3 shadow-sm bg-amber-50 text-amber-800 border border-amber-200">
+          This bug is in an active status but has no assignees. Add an assignee before
+          continuing work or changing status.
+        </p>
+      )}
+
       <WorkItemStatusPicker
         type="bug"
         currentStatus={bug.status}
         statuses={BUG_STATUSES}
         canChange={Boolean(bug.can_change_status)}
         isPending={statusMutation.isPending}
-        onSelect={(s) => statusMutation.mutate(s)}
+        onSelect={(s) => {
+          if (BUG_STATUSES_REQUIRING_ASSIGNEE.has(s) && !hasAssignees) {
+            setStatusFeedback({
+              type: "error",
+              message: "Assign at least one team member before moving to this status.",
+            });
+            return;
+          }
+          statusMutation.mutate(s);
+        }}
         extraActions={
           canReject ? (
             <button
@@ -373,6 +415,61 @@ export default function BugDetailPage() {
           </button>
         </form>
       )}
+
+      <WorkItemSection
+        title="Time tracking"
+        subtitle={totalMinutes > 0 ? `${(totalMinutes / 60).toFixed(1)} hours logged total` : "No time logged yet"}
+        accent="bug"
+      >
+        {canLogTime ? (
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              logTime.mutate({
+                minutes: Number(minutes),
+                work_date: new Date().toISOString().slice(0, 10),
+                note: "",
+              });
+            }}
+          >
+            <input
+              type="number"
+              min={1}
+              placeholder="Minutes"
+              className="border border-slate-200 rounded-lg px-3 py-2 w-32 shadow-sm"
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={logTime.isPending}
+              className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-900 disabled:opacity-50"
+            >
+              Log time
+            </button>
+          </form>
+        ) : (
+          <p className="text-sm text-slate-500">
+            Only team members assigned to this bug can log time.
+          </p>
+        )}
+        {bug.time_entries && bug.time_entries.length > 0 && (
+          <ul className={`space-y-2 ${canLogTime ? "mt-4" : ""}`}>
+            {bug.time_entries.map((entry) => (
+              <li
+                key={entry.id}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+              >
+                <p className="font-medium text-slate-800">{entry.minutes} min</p>
+                <p className="text-slate-500 mt-0.5">
+                  {formatUserName(entry.user_detail)} · {entry.work_date}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </WorkItemSection>
 
       <WorkItemSection
         title="Evidence"

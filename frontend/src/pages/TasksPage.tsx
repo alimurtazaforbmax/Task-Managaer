@@ -1,21 +1,50 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
+import { useAuth } from "../context/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePermissions } from "../hooks/usePermissions";
 import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { useProjects } from "../hooks/useProjects";
+import { buildQueryString } from "../utils/buildQueryString";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
-import type { ApiResponse, Paginated, Project, Task } from "../types";
+import type { ApiResponse, Paginated, Task } from "../types";
+
+const TASK_STATUSES = [
+  "backlog",
+  "todo",
+  "in_progress",
+  "in_review",
+  "done",
+  "blocked",
+  "cancelled",
+];
+const TASK_PRIORITIES = ["low", "medium", "high", "urgent"];
+const TASK_TYPES = ["feature", "chore", "spike"];
+
+const emptyFilters = {
+  search: "",
+  project: "",
+  status: "",
+  priority: "",
+  task_type: "",
+  assignee: "",
+};
 
 export default function TasksPage() {
+  const { user } = useAuth();
   const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [form, setForm] = useState(emptyTaskForm);
+  const [filters, setFilters] = useState(emptyFilters);
+  const debouncedSearch = useDebouncedValue(filters.search);
 
   const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
   const assignableUsers = projectMembersToUsers(projectMembers);
@@ -23,19 +52,39 @@ export default function TasksPage() {
   const { data: features } = useProjectFeatures(projectId);
   const { data: sprints } = useProjectSprints(projectId);
 
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>("/projects/");
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
-  });
+  const { data: projects } = useProjects();
+
+  const hasActiveFilters = Boolean(
+    filters.search ||
+      filters.project ||
+      filters.status ||
+      filters.priority ||
+      filters.task_type ||
+      filters.assignee
+  );
 
   const { data: tasks, isLoading } = useQuery({
-    queryKey: ["tasks"],
+    queryKey: [
+      "tasks",
+      debouncedSearch,
+      filters.project,
+      filters.status,
+      filters.priority,
+      filters.task_type,
+      filters.assignee,
+    ],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Task> | Task[]>>("/tasks/");
+      const res = await api.get<ApiResponse<Paginated<Task> | Task[]>>(
+        `/tasks/${buildQueryString({
+          search: debouncedSearch,
+          project: filters.project,
+          status: filters.status,
+          priority: filters.priority,
+          task_type: filters.task_type,
+          assignees: filters.assignee === "me" && user ? user.id : undefined,
+          page_size: 100,
+        })}`
+      );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
     },
@@ -66,6 +115,11 @@ export default function TasksPage() {
     },
   });
 
+  const projectOptions = [
+    { value: "", label: "All projects" },
+    ...(projects?.map((p) => ({ value: String(p.id), label: p.name })) ?? []),
+  ];
+
   return (
     <PageContainer>
       <div className="flex items-center justify-between">
@@ -84,6 +138,57 @@ export default function TasksPage() {
           </button>
         )}
       </div>
+
+      <FilterBar
+        search={filters.search}
+        onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
+        searchPlaceholder="Search tasks…"
+        showClear={hasActiveFilters}
+        onClear={() => setFilters(emptyFilters)}
+      >
+        <FilterSelect
+          label="Project"
+          value={filters.project}
+          onChange={(project) => setFilters((f) => ({ ...f, project }))}
+          options={projectOptions}
+        />
+        <FilterSelect
+          label="Status"
+          value={filters.status}
+          onChange={(status) => setFilters((f) => ({ ...f, status }))}
+          options={[
+            { value: "", label: "All statuses" },
+            ...TASK_STATUSES.map((s) => ({ value: s, label: formatFilterLabel(s) })),
+          ]}
+        />
+        <FilterSelect
+          label="Priority"
+          value={filters.priority}
+          onChange={(priority) => setFilters((f) => ({ ...f, priority }))}
+          options={[
+            { value: "", label: "All priorities" },
+            ...TASK_PRIORITIES.map((p) => ({ value: p, label: formatFilterLabel(p) })),
+          ]}
+        />
+        <FilterSelect
+          label="Type"
+          value={filters.task_type}
+          onChange={(task_type) => setFilters((f) => ({ ...f, task_type }))}
+          options={[
+            { value: "", label: "All types" },
+            ...TASK_TYPES.map((t) => ({ value: t, label: formatFilterLabel(t) })),
+          ]}
+        />
+        <FilterSelect
+          label="Assignee"
+          value={filters.assignee}
+          onChange={(assignee) => setFilters((f) => ({ ...f, assignee }))}
+          options={[
+            { value: "", label: "Anyone" },
+            { value: "me", label: "Assigned to me" },
+          ]}
+        />
+      </FilterBar>
 
       {showForm && (
         <div className="mt-6">
@@ -110,9 +215,9 @@ export default function TasksPage() {
 
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading...</p>
-      ) : (
+      ) : tasks?.length ? (
         <ul className="mt-8 space-y-2">
-          {tasks?.map((t) => (
+          {tasks.map((t) => (
             <WorkItemRow
               key={t.id}
               title={t.title}
@@ -136,6 +241,10 @@ export default function TasksPage() {
             />
           ))}
         </ul>
+      ) : (
+        <p className="mt-8 text-slate-400">
+          {hasActiveFilters ? "No tasks match your filters." : "No tasks yet."}
+        </p>
       )}
     </PageContainer>
   );

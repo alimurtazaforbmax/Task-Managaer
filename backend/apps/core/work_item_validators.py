@@ -21,6 +21,22 @@ def validate_assignees_not_self(request, assignees, *, work_item_label: str = "w
     return assignees
 
 
+BUG_STATUSES_REQUIRING_ASSIGNEE = frozenset({
+    "in_progress",
+    "fixed",
+    "qa_verification",
+    "closed",
+})
+
+
+def validate_bug_assignees_for_status(*, status: str, assignee_count: int) -> None:
+    if status in BUG_STATUSES_REQUIRING_ASSIGNEE and assignee_count < 1:
+        label = status.replace("_", " ")
+        raise serializers.ValidationError(
+            f"Bugs in '{label}' status must have at least one assignee."
+        )
+
+
 class AssigneeDueDateValidationMixin:
     work_item_label = "work"
 

@@ -1,11 +1,21 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
 import ProjectCard from "../components/ProjectCard";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import { useAuth } from "../context/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { useUsers } from "../hooks/useUsers";
+import { buildQueryString } from "../utils/buildQueryString";
 import type { ApiResponse, Paginated, Project } from "../types";
+
+const PROJECT_STATUSES = ["active", "on_hold", "archived"];
+
+const emptyFilters = {
+  search: "",
+  status: "",
+};
 
 const emptyForm = {
   name: "",
@@ -22,14 +32,22 @@ export default function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [filters, setFilters] = useState(emptyFilters);
+  const debouncedSearch = useDebouncedValue(filters.search);
 
   const isAdmin = user?.role === "admin";
 
+  const hasActiveFilters = Boolean(filters.search || filters.status);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["projects"],
+    queryKey: ["projects", debouncedSearch, filters.status],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>(
-        "/projects/"
+        `/projects/${buildQueryString({
+          search: debouncedSearch,
+          status: filters.status,
+          page_size: 100,
+        })}`
       );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
@@ -72,6 +90,24 @@ export default function ProjectsPage() {
           </button>
         )}
       </div>
+
+      <FilterBar
+        search={filters.search}
+        onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
+        searchPlaceholder="Search projects…"
+        showClear={hasActiveFilters}
+        onClear={() => setFilters(emptyFilters)}
+      >
+        <FilterSelect
+          label="Status"
+          value={filters.status}
+          onChange={(status) => setFilters((f) => ({ ...f, status }))}
+          options={[
+            { value: "", label: "All statuses" },
+            ...PROJECT_STATUSES.map((s) => ({ value: s, label: formatFilterLabel(s) })),
+          ]}
+        />
+      </FilterBar>
 
       {showForm && isAdmin && (
         <form
@@ -125,12 +161,16 @@ export default function ProjectsPage() {
 
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading...</p>
-      ) : (
+      ) : data?.length ? (
         <div className="grid gap-5 mt-8 md:grid-cols-2">
-          {data?.map((p) => (
+          {data.map((p) => (
             <ProjectCard key={p.id} project={p} />
           ))}
         </div>
+      ) : (
+        <p className="mt-8 text-slate-400">
+          {hasActiveFilters ? "No projects match your filters." : "No projects yet."}
+        </p>
       )}
     </div>
   );

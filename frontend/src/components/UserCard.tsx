@@ -12,7 +12,9 @@ export default function UserCard({ user, onEdit }: UserCardProps) {
   const navigate = useNavigate();
   const displayName =
     [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
-  const roleStyle = MEMBER_ROLE_STYLES[user.role] ?? "bg-slate-100 text-slate-700";
+  const roleKey = user.role ?? "";
+  const roleStyle = MEMBER_ROLE_STYLES[roleKey] ?? "bg-slate-100 text-slate-700";
+  const roleLabel = user.access_role_name ?? formatRoleLabel(user.role);
   const isActive = user.is_active !== false;
 
   return (
@@ -42,7 +44,7 @@ export default function UserCard({ user, onEdit }: UserCardProps) {
             <p className="text-sm text-slate-500">@{user.username}</p>
             <div className="flex flex-wrap gap-2 mt-2">
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${roleStyle}`}>
-                {formatRoleLabel(user.role)}
+                {roleLabel}
               </span>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${

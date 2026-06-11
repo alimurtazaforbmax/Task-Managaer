@@ -2,11 +2,20 @@ import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router-dom";
 import api, { unwrap } from "../api/client";
+import FilterBar, { FilterSelect } from "../components/FilterBar";
 import UserCard from "../components/UserCard";
 import UserPhotoUpload from "../components/UserPhotoUpload";
 import { useAuth } from "../context/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { buildQueryString } from "../utils/buildQueryString";
 import type { ApiResponse, Department, Paginated, Role, User } from "../types";
-import { formatRoleLabel } from "../utils/projectStyle";
+
+const emptyUserFilters = {
+  search: "",
+  access_role: "",
+  department: "",
+  is_active: "",
+};
 
 function FieldLabel({
   children,
@@ -30,6 +39,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [filters, setFilters] = useState(emptyUserFilters);
+  const debouncedSearch = useDebouncedValue(filters.search);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -41,6 +52,10 @@ export default function UsersPage() {
     department: "" as string | number,
     is_active: true,
   });
+
+  const hasActiveFilters = Boolean(
+    filters.search || filters.access_role || filters.department || filters.is_active
+  );
 
   const { data: roles } = useQuery({
     queryKey: ["roles"],
@@ -65,10 +80,22 @@ export default function UsersPage() {
   });
 
   const { data: users, isLoading } = useQuery({
-    queryKey: ["users"],
+    queryKey: [
+      "users",
+      debouncedSearch,
+      filters.access_role,
+      filters.department,
+      filters.is_active,
+    ],
     queryFn: async () => {
       const res = await api.get<ApiResponse<Paginated<User> | User[]>>(
-        "/auth/users/?page_size=100"
+        `/auth/users/${buildQueryString({
+          search: debouncedSearch,
+          access_role: filters.access_role,
+          department: filters.department,
+          is_active: filters.is_active,
+          page_size: 100,
+        })}`
       );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
@@ -226,6 +253,43 @@ export default function UsersPage() {
           New user
         </button>
       </div>
+
+      <FilterBar
+        search={filters.search}
+        onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
+        searchPlaceholder="Search by name, email, or username…"
+        showClear={hasActiveFilters}
+        onClear={() => setFilters(emptyUserFilters)}
+      >
+        <FilterSelect
+          label="Role"
+          value={filters.access_role}
+          onChange={(access_role) => setFilters((f) => ({ ...f, access_role }))}
+          options={[
+            { value: "", label: "All roles" },
+            ...(roles?.map((r) => ({ value: String(r.id), label: r.name })) ?? []),
+          ]}
+        />
+        <FilterSelect
+          label="Department"
+          value={filters.department}
+          onChange={(department) => setFilters((f) => ({ ...f, department }))}
+          options={[
+            { value: "", label: "All departments" },
+            ...(departments?.map((d) => ({ value: String(d.id), label: d.name })) ?? []),
+          ]}
+        />
+        <FilterSelect
+          label="Status"
+          value={filters.is_active}
+          onChange={(is_active) => setFilters((f) => ({ ...f, is_active }))}
+          options={[
+            { value: "", label: "All accounts" },
+            { value: "true", label: "Active" },
+            { value: "false", label: "Inactive" },
+          ]}
+        />
+      </FilterBar>
 
       {showForm && (
         <form
@@ -400,12 +464,16 @@ export default function UsersPage() {
 
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading profiles…</p>
-      ) : (
+      ) : users?.length ? (
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {users?.map((u) => (
+          {users.map((u) => (
             <UserCard key={u.id} user={u} onEdit={startEdit} />
           ))}
         </div>
+      ) : (
+        <p className="mt-8 text-slate-400">
+          {hasActiveFilters ? "No users match your filters." : "No users yet."}
+        </p>
       )}
     </div>
   );

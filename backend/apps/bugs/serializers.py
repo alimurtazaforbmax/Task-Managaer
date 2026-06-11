@@ -1,7 +1,10 @@
 from rest_framework import serializers
 
 from apps.accounts.serializers import DepartmentSerializer, UserSerializer
-from apps.core.work_item_validators import AssigneeDueDateValidationMixin
+from apps.core.work_item_validators import (
+    AssigneeDueDateValidationMixin,
+    validate_bug_assignees_for_status,
+)
 from apps.bugs.models import Bug
 from apps.accounts.permissions_util import is_admin_user
 from apps.core.permissions import can_change_status
@@ -112,6 +115,19 @@ class BugUpdateSerializer(AssigneeDueDateValidationMixin, serializers.ModelSeria
             "estimated_hours",
             "tags",
         )
+
+    def validate(self, attrs):
+        instance = self.instance
+        if instance:
+            if "assignees" in attrs:
+                assignee_count = len(attrs["assignees"])
+            else:
+                assignee_count = instance.assignees.count()
+            validate_bug_assignees_for_status(
+                status=instance.status,
+                assignee_count=assignee_count,
+            )
+        return attrs
 
 
 class BugListSerializer(serializers.ModelSerializer):

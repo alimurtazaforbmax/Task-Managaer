@@ -27,6 +27,7 @@ from apps.core.serializers import (
     CommentSerializer,
     TimeEntrySerializer,
 )
+from apps.core.work_item_validators import BUG_STATUSES_REQUIRING_ASSIGNEE
 from apps.core.services import (
     log_activity,
     notify_status_change,
@@ -44,6 +45,7 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         "status",
         "severity",
         "priority",
+        "environment",
         "project",
         "assignees",
         "assignee_department",
@@ -180,6 +182,14 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             return success_response(
                 data=BugSerializer(bug, context={"request": request}).data,
                 message=f"Status is already {old.replace('_', ' ')}.",
+            )
+        if (
+            new_status in BUG_STATUSES_REQUIRING_ASSIGNEE
+            and not bug.assignees.exists()
+        ):
+            return error_response(
+                "Assign at least one team member before moving to this status.",
+                status=status.HTTP_400_BAD_REQUEST,
             )
         bug.status = new_status
         bug.save(update_fields=["status", "updated_at"])
@@ -337,11 +347,16 @@ class BugViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 bug.time_entries.select_related("user"), many=True
             )
             return success_response(data=serializer.data)
+        if not bug.assignees.filter(id=request.user.id).exists():
+            return error_response(
+                "Only assigned team members can log time on this bug.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = TimeEntrySerializer(data={**request.data, "bug": bug.id})
         serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+        entry = serializer.save(user=request.user)
         return success_response(
-            data=serializer.data,
+            data=TimeEntrySerializer(entry).data,
             message="Time logged.",
             status=status.HTTP_201_CREATED,
         )

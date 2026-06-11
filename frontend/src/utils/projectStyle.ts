@@ -106,7 +106,8 @@ export const MEMBER_ROLE_STYLES: Record<string, string> = {
   admin: "bg-amber-100 text-amber-800",
 };
 
-export function formatRoleLabel(role: string): string {
+export function formatRoleLabel(role?: string | null): string {
+  if (!role) return "No role";
   return ROLE_LABELS[role] ?? role.replace(/_/g, " ");
 }
 

@@ -1,37 +1,91 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { BugCreateForm, emptyBugForm } from "../components/WorkItemForms";
+import { useAuth } from "../context/AuthContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePermissions } from "../hooks/usePermissions";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { useProjects } from "../hooks/useProjects";
+import { buildQueryString } from "../utils/buildQueryString";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
-import type { ApiResponse, Bug, Paginated, Project } from "../types";
+import type { ApiResponse, Bug, Paginated } from "../types";
+
+const BUG_STATUSES = [
+  "open",
+  "triaged",
+  "in_progress",
+  "fixed",
+  "qa_verification",
+  "closed",
+  "rejected",
+];
+const BUG_SEVERITIES = ["low", "medium", "high", "critical"];
+const BUG_PRIORITIES = ["low", "medium", "high", "urgent"];
+const BUG_ENVIRONMENTS = ["staging", "uat", "production"];
+
+const emptyFilters = {
+  search: "",
+  project: "",
+  status: "",
+  severity: "",
+  priority: "",
+  environment: "",
+  assignee: "",
+};
 
 export default function BugsPage() {
+  const { user } = useAuth();
   const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [form, setForm] = useState(emptyBugForm);
+  const [filters, setFilters] = useState(emptyFilters);
+  const debouncedSearch = useDebouncedValue(filters.search);
 
   const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
   const assignableUsers = projectMembersToUsers(projectMembers);
 
-  const { data: projects } = useQuery({
-    queryKey: ["projects"],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>("/projects/");
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
-  });
+  const { data: projects } = useProjects();
+
+  const hasActiveFilters = Boolean(
+    filters.search ||
+      filters.project ||
+      filters.status ||
+      filters.severity ||
+      filters.priority ||
+      filters.environment ||
+      filters.assignee
+  );
 
   const { data: bugs, isLoading } = useQuery({
-    queryKey: ["bugs"],
+    queryKey: [
+      "bugs",
+      debouncedSearch,
+      filters.project,
+      filters.status,
+      filters.severity,
+      filters.priority,
+      filters.environment,
+      filters.assignee,
+    ],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Bug> | Bug[]>>("/bugs/");
+      const res = await api.get<ApiResponse<Paginated<Bug> | Bug[]>>(
+        `/bugs/${buildQueryString({
+          search: debouncedSearch,
+          project: filters.project,
+          status: filters.status,
+          severity: filters.severity,
+          priority: filters.priority,
+          environment: filters.environment,
+          assignees: filters.assignee === "me" && user ? user.id : undefined,
+          page_size: 100,
+        })}`
+      );
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
     },
@@ -60,6 +114,11 @@ export default function BugsPage() {
     },
   });
 
+  const projectOptions = [
+    { value: "", label: "All projects" },
+    ...(projects?.map((p) => ({ value: String(p.id), label: p.name })) ?? []),
+  ];
+
   return (
     <PageContainer>
       <div className="flex items-center justify-between">
@@ -76,6 +135,66 @@ export default function BugsPage() {
           </button>
         )}
       </div>
+
+      <FilterBar
+        search={filters.search}
+        onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
+        searchPlaceholder="Search bugs…"
+        showClear={hasActiveFilters}
+        onClear={() => setFilters(emptyFilters)}
+      >
+        <FilterSelect
+          label="Project"
+          value={filters.project}
+          onChange={(project) => setFilters((f) => ({ ...f, project }))}
+          options={projectOptions}
+        />
+        <FilterSelect
+          label="Status"
+          value={filters.status}
+          onChange={(status) => setFilters((f) => ({ ...f, status }))}
+          options={[
+            { value: "", label: "All statuses" },
+            ...BUG_STATUSES.map((s) => ({ value: s, label: formatFilterLabel(s) })),
+          ]}
+        />
+        <FilterSelect
+          label="Severity"
+          value={filters.severity}
+          onChange={(severity) => setFilters((f) => ({ ...f, severity }))}
+          options={[
+            { value: "", label: "All severities" },
+            ...BUG_SEVERITIES.map((s) => ({ value: s, label: formatFilterLabel(s) })),
+          ]}
+        />
+        <FilterSelect
+          label="Priority"
+          value={filters.priority}
+          onChange={(priority) => setFilters((f) => ({ ...f, priority }))}
+          options={[
+            { value: "", label: "All priorities" },
+            ...BUG_PRIORITIES.map((p) => ({ value: p, label: formatFilterLabel(p) })),
+          ]}
+        />
+        <FilterSelect
+          label="Environment"
+          value={filters.environment}
+          onChange={(environment) => setFilters((f) => ({ ...f, environment }))}
+          options={[
+            { value: "", label: "All environments" },
+            ...BUG_ENVIRONMENTS.map((e) => ({ value: e, label: formatFilterLabel(e) })),
+          ]}
+        />
+        <FilterSelect
+          label="Assignee"
+          value={filters.assignee}
+          onChange={(assignee) => setFilters((f) => ({ ...f, assignee }))}
+          options={[
+            { value: "", label: "Anyone" },
+            { value: "me", label: "Assigned to me" },
+          ]}
+        />
+      </FilterBar>
 
       {showForm && (
         <div className="mt-6">
@@ -99,9 +218,9 @@ export default function BugsPage() {
 
       {isLoading ? (
         <p className="mt-8 text-slate-400">Loading...</p>
-      ) : (
+      ) : bugs?.length ? (
         <ul className="mt-8 space-y-2">
-          {bugs?.map((b) => (
+          {bugs.map((b) => (
             <WorkItemRow
               key={b.id}
               title={b.title}
@@ -124,6 +243,10 @@ export default function BugsPage() {
             />
           ))}
         </ul>
+      ) : (
+        <p className="mt-8 text-slate-400">
+          {hasActiveFilters ? "No bugs match your filters." : "No bugs yet."}
+        </p>
       )}
     </PageContainer>
   );

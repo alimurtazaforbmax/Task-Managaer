@@ -17,7 +17,7 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  role: string;
+  role?: string | null;
   access_role?: number | null;
   access_role_name?: string;
   department: number | null;
@@ -255,6 +255,7 @@ export interface Bug {
   due_date: string | null;
   comments?: Comment[];
   attachments?: Attachment[];
+  time_entries?: TimeEntry[];
   updated_at?: string;
 }
 

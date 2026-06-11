@@ -40,6 +40,7 @@ class TaskViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     filterset_fields = [
         "status",
         "priority",
+        "task_type",
         "project",
         "feature",
         "sprint",
