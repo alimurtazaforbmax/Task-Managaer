@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import api, { unwrap } from "../api/client";
 import PageContainer from "../components/PageContainer";
+import PaginationBar from "../components/PaginationBar";
 import { useAuth } from "../context/AuthContext";
-import type { ApiResponse, AuditLog, Paginated } from "../types";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import type { AuditLog } from "../types";
+
+const PAGE_SIZE = 20;
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString();
@@ -20,21 +22,25 @@ export default function AdminLogsPage() {
   const { user } = useAuth();
   const [entityFilter, setEntityFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: logs, isLoading } = useQuery({
+  useEffect(() => {
+    setPage(1);
+  }, [entityFilter, actionFilter]);
+
+  const { data: logPage, isLoading } = usePaginatedList<AuditLog>({
     queryKey: ["audit-logs", entityFilter, actionFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams({ page_size: "100", ordering: "-created_at" });
-      if (entityFilter) params.set("entity_type", entityFilter);
-      if (actionFilter) params.set("action", actionFilter);
-      const res = await api.get<ApiResponse<Paginated<AuditLog> | AuditLog[]>>(
-        `/audit-logs/?${params}`
-      );
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
+    path: "/audit-logs/",
+    params: {
+      entity_type: entityFilter,
+      action: actionFilter,
+      ordering: "-created_at",
     },
+    page,
+    pageSize: PAGE_SIZE,
     enabled: user?.role === "admin",
   });
+  const logs = logPage?.results ?? [];
 
   if (user?.role !== "admin") {
     return <Navigate to="/" replace />;
@@ -121,6 +127,13 @@ export default function AdminLogsPage() {
           )}
         </div>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={logPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }

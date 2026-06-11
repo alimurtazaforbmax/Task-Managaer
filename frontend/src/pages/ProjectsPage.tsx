@@ -1,14 +1,16 @@
-import { FormEvent, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
+import PaginationBar from "../components/PaginationBar";
 import ProjectCard from "../components/ProjectCard";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import { useAuth } from "../context/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { useUsers } from "../hooks/useUsers";
-import { buildQueryString } from "../utils/buildQueryString";
-import type { ApiResponse, Paginated, Project } from "../types";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import type { ApiResponse, Project } from "../types";
+
+const PAGE_SIZE = 20;
 
 const PROJECT_STATUSES = ["active", "on_hold", "archived"];
 
@@ -27,32 +29,30 @@ const emptyForm = {
 
 export default function ProjectsPage() {
   const { user } = useAuth();
-  const { data: users } = useUsers();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [filters, setFilters] = useState(emptyFilters);
+  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(filters.search);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filters.status]);
 
   const isAdmin = user?.role === "admin";
 
   const hasActiveFilters = Boolean(filters.search || filters.status);
 
-  const { data, isLoading } = useQuery({
+  const { data: projectPage, isLoading } = usePaginatedList<Project>({
     queryKey: ["projects", debouncedSearch, filters.status],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Project> | Project[]>>(
-        `/projects/${buildQueryString({
-          search: debouncedSearch,
-          status: filters.status,
-          page_size: 100,
-        })}`
-      );
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
+    path: "/projects/",
+    params: { search: debouncedSearch, status: filters.status },
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const data = projectPage?.results ?? [];
 
   const createProject = useMutation({
     mutationFn: async () => {
@@ -96,7 +96,10 @@ export default function ProjectsPage() {
         onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
         searchPlaceholder="Search projects…"
         showClear={hasActiveFilters}
-        onClear={() => setFilters(emptyFilters)}
+        onClear={() => {
+          setFilters(emptyFilters);
+          setPage(1);
+        }}
       >
         <FilterSelect
           label="Status"
@@ -149,7 +152,6 @@ export default function ProjectsPage() {
             <option value="archived">Archived</option>
           </select>
           <ProjectMemberSelect
-            users={users ?? []}
             selected={form.member_ids}
             onChange={(member_ids) => setForm({ ...form, member_ids })}
           />
@@ -172,6 +174,13 @@ export default function ProjectsPage() {
           {hasActiveFilters ? "No projects match your filters." : "No projects yet."}
         </p>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={projectPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

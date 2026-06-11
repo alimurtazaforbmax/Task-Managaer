@@ -2,9 +2,13 @@ import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import FeatureCard from "../components/FeatureCard";
+import PaginationBar from "../components/PaginationBar";
 import PageContainer from "../components/PageContainer";
 import { usePermissions } from "../hooks/usePermissions";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import type { ApiResponse, Feature, Paginated, Project } from "../types";
+
+const PAGE_SIZE = 20;
 
 const emptyForm = {
   title: "",
@@ -18,6 +22,7 @@ export default function FeaturesPage() {
   const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(emptyForm);
 
   const { data: projects } = useQuery({
@@ -29,14 +34,13 @@ export default function FeaturesPage() {
     },
   });
 
-  const { data: features, isLoading } = useQuery({
+  const { data: featurePage, isLoading } = usePaginatedList<Feature>({
     queryKey: ["features"],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Feature> | Feature[]>>("/features/");
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
+    path: "/features/",
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const features = featurePage?.results ?? [];
 
   const createFeature = useMutation({
     mutationFn: async () => {
@@ -162,6 +166,13 @@ export default function FeaturesPage() {
           )}
         </div>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={featurePage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }

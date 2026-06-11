@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
+import PaginationBar from "../components/PaginationBar";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { emptyTaskForm, TaskCreateForm } from "../components/WorkItemForms";
@@ -10,10 +11,12 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePermissions } from "../hooks/usePermissions";
 import { useProjectFeatures, useProjectSprints } from "../hooks/useProjectPlanning";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { useProjects } from "../hooks/useProjects";
-import { buildQueryString } from "../utils/buildQueryString";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
-import type { ApiResponse, Paginated, Task } from "../types";
+import type { ApiResponse, Task } from "../types";
+
+const PAGE_SIZE = 20;
 
 const TASK_STATUSES = [
   "backlog",
@@ -44,7 +47,19 @@ export default function TasksPage() {
   const [projectId, setProjectId] = useState("");
   const [form, setForm] = useState(emptyTaskForm);
   const [filters, setFilters] = useState(emptyFilters);
+  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(filters.search);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    debouncedSearch,
+    filters.project,
+    filters.status,
+    filters.priority,
+    filters.task_type,
+    filters.assignee,
+  ]);
 
   const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
   const assignableUsers = projectMembersToUsers(projectMembers);
@@ -63,7 +78,7 @@ export default function TasksPage() {
       filters.assignee
   );
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: taskPage, isLoading } = usePaginatedList<Task>({
     queryKey: [
       "tasks",
       debouncedSearch,
@@ -73,22 +88,19 @@ export default function TasksPage() {
       filters.task_type,
       filters.assignee,
     ],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Task> | Task[]>>(
-        `/tasks/${buildQueryString({
-          search: debouncedSearch,
-          project: filters.project,
-          status: filters.status,
-          priority: filters.priority,
-          task_type: filters.task_type,
-          assignees: filters.assignee === "me" && user ? user.id : undefined,
-          page_size: 100,
-        })}`
-      );
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
+    path: "/tasks/",
+    params: {
+      search: debouncedSearch,
+      project: filters.project,
+      status: filters.status,
+      priority: filters.priority,
+      task_type: filters.task_type,
+      assignees: filters.assignee === "me" && user ? user.id : undefined,
     },
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const tasks = taskPage?.results ?? [];
 
   const createTask = useMutation({
     mutationFn: async (attachments: File[]) => {
@@ -144,7 +156,10 @@ export default function TasksPage() {
         onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
         searchPlaceholder="Search tasks…"
         showClear={hasActiveFilters}
-        onClear={() => setFilters(emptyFilters)}
+        onClear={() => {
+          setFilters(emptyFilters);
+          setPage(1);
+        }}
       >
         <FilterSelect
           label="Project"
@@ -246,6 +261,13 @@ export default function TasksPage() {
           {hasActiveFilters ? "No tasks match your filters." : "No tasks yet."}
         </p>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={taskPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }

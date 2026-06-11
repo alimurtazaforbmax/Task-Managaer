@@ -1,11 +1,15 @@
 import { useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api, { unwrap } from "../api/client";
-import type { ApiResponse, ProjectDocument } from "../types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "../api/client";
+import PaginationBar from "./PaginationBar";
+import { usePaginatedList } from "../hooks/usePaginatedList";
+import type { ProjectDocument } from "../types";
 
 interface ProjectDocumentsSectionProps {
   readonly projectId: string;
 }
+
+const PAGE_SIZE = 10;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -18,16 +22,15 @@ export default function ProjectDocumentsSection({ projectId }: ProjectDocumentsS
   const fileRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: documents, isLoading } = useQuery({
+  const { data: docPage, isLoading } = usePaginatedList<ProjectDocument>({
     queryKey: ["project-documents", projectId],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<ProjectDocument[]>>(
-        `/projects/${projectId}/documents/`
-      );
-      return unwrap(res);
-    },
+    path: `/projects/${projectId}/documents/`,
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const documents = docPage?.results ?? [];
 
   const uploadDocument = useMutation({
     mutationFn: async (file: File) => {
@@ -41,6 +44,7 @@ export default function ProjectDocumentsSection({ projectId }: ProjectDocumentsS
     onSuccess: () => {
       setTitle("");
       setError("");
+      setPage(1);
       qc.invalidateQueries({ queryKey: ["project-documents", projectId] });
     },
     onError: () => setError("Could not upload document. Check file type and size."),
@@ -49,7 +53,9 @@ export default function ProjectDocumentsSection({ projectId }: ProjectDocumentsS
   return (
     <section className="mt-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-semibold text-lg text-slate-900">Project documents</h2>
+        <h2 className="font-semibold text-lg text-slate-900">
+          Project documents{docPage?.count ? ` (${docPage.count})` : ""}
+        </h2>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -83,7 +89,7 @@ export default function ProjectDocumentsSection({ projectId }: ProjectDocumentsS
 
       {isLoading ? (
         <p className="text-slate-400 mt-4 text-sm">Loading documents…</p>
-      ) : !documents?.length ? (
+      ) : !documents.length ? (
         <p className="text-slate-400 mt-4 text-sm">No documents uploaded yet.</p>
       ) : (
         <ul className="mt-4 space-y-2">
@@ -119,6 +125,13 @@ export default function ProjectDocumentsSection({ projectId }: ProjectDocumentsS
           ))}
         </ul>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={docPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </section>
   );
 }

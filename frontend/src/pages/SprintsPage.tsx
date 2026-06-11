@@ -1,10 +1,14 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import PaginationBar from "../components/PaginationBar";
 import PageContainer from "../components/PageContainer";
 import SprintCard from "../components/SprintCard";
 import { usePermissions } from "../hooks/usePermissions";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import type { ApiResponse, Paginated, Project, Sprint } from "../types";
+
+const PAGE_SIZE = 20;
 
 const emptyForm = {
   name: "",
@@ -19,6 +23,7 @@ export default function SprintsPage() {
   const permissions = usePermissions();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(emptyForm);
 
   const { data: projects } = useQuery({
@@ -30,14 +35,13 @@ export default function SprintsPage() {
     },
   });
 
-  const { data: sprints, isLoading } = useQuery({
+  const { data: sprintPage, isLoading } = usePaginatedList<Sprint>({
     queryKey: ["sprints"],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Sprint> | Sprint[]>>("/sprints/");
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
+    path: "/sprints/",
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const sprints = sprintPage?.results ?? [];
 
   const createSprint = useMutation({
     mutationFn: async () => {
@@ -161,6 +165,13 @@ export default function SprintsPage() {
           )}
         </div>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={sprintPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }

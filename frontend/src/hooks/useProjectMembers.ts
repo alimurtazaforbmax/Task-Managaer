@@ -1,16 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
-import api, { unwrap } from "../api/client";
-import type { ApiResponse, ProjectMember, User } from "../types";
+import { fetchAllPages, fetchPaginatedPage } from "../utils/paginatedApi";
+import type { ProjectMember, User } from "../types";
 
+/** All project members (for assignee dropdowns). Fetches every page. */
 export function useProjectMembers(projectId: string | number | undefined) {
   return useQuery({
-    queryKey: ["project-members", projectId],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<ProjectMember[]>>(
-        `/projects/${projectId}/members/`
-      );
-      return unwrap(res);
-    },
+    queryKey: ["project-members", projectId, "all"],
+    queryFn: () =>
+      fetchAllPages<ProjectMember>(`/projects/${projectId}/members/`, { page_size: 100 }),
+    enabled: Boolean(projectId),
+  });
+}
+
+/** Paginated project members (for team list UI). */
+export function useProjectMembersPaginated(
+  projectId: string | number | undefined,
+  page: number,
+  pageSize = 20
+) {
+  return useQuery({
+    queryKey: ["project-members", projectId, "page", page, pageSize],
+    queryFn: () =>
+      fetchPaginatedPage<ProjectMember>(`/projects/${projectId}/members/`, {
+        page,
+        page_size: pageSize,
+      }),
     enabled: Boolean(projectId),
   });
 }

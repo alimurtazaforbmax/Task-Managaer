@@ -1,10 +1,14 @@
 import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
+import PaginationBar from "../components/PaginationBar";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { formatMemberLabel, useProjectMembers } from "../hooks/useProjectMembers";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import type { ApiResponse, Department, Paginated, Project, Ticket } from "../types";
+
+const PAGE_SIZE = 20;
 
 const REQUEST_TYPES = [
   { value: "task", label: "Task request" },
@@ -27,6 +31,7 @@ function emptyForm() {
 export default function TicketsPage() {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(1);
   const [form, setForm] = useState(emptyForm);
   const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(
     form.project || undefined
@@ -54,14 +59,13 @@ export default function TicketsPage() {
     },
   });
 
-  const { data: tickets, isLoading } = useQuery({
+  const { data: ticketPage, isLoading } = usePaginatedList<Ticket>({
     queryKey: ["tickets"],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Ticket> | Ticket[]>>("/tickets/");
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
-    },
+    path: "/tickets/",
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const tickets = ticketPage?.results ?? [];
 
   const memberProjects = projects ?? [];
 
@@ -277,6 +281,13 @@ export default function TicketsPage() {
           )}
         </ul>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={ticketPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }

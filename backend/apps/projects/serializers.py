@@ -75,10 +75,10 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class ProjectDetailSerializer(ProjectSerializer):
-    members = ProjectMemberSerializer(many=True, read_only=True)
+    """Project detail — members are loaded via /projects/{id}/members/ (paginated)."""
 
     class Meta(ProjectSerializer.Meta):
-        fields = ProjectSerializer.Meta.fields + ("members",)
+        fields = ProjectSerializer.Meta.fields
 
 
 class ProjectWriteSerializer(serializers.ModelSerializer):

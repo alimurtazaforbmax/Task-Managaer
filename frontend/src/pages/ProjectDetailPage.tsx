@@ -6,6 +6,7 @@ import BackLink from "../components/BackLink";
 import PageContainer from "../components/PageContainer";
 import ReportModal from "../components/ReportModal";
 import MemberRow from "../components/MemberRow";
+import PaginationBar from "../components/PaginationBar";
 import ProjectDocumentsSection from "../components/ProjectDocumentsSection";
 import ProjectMemberSelect from "../components/ProjectMemberSelect";
 import StatChip from "../components/StatChip";
@@ -20,7 +21,11 @@ import {
 } from "../components/WorkItemForms";
 import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../hooks/usePermissions";
-import { useUsers } from "../hooks/useUsers";
+import {
+  projectMembersToUsers,
+  useProjectMembers,
+  useProjectMembersPaginated,
+} from "../hooks/useProjectMembers";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import FeatureCard from "../components/FeatureCard";
 import SprintCard from "../components/SprintCard";
@@ -30,10 +35,11 @@ export default function ProjectDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const permissions = usePermissions();
-  const { data: users } = useUsers();
   const qc = useQueryClient();
   const isAdmin = user?.role === "admin";
   const [showEdit, setShowEdit] = useState(false);
+  const [membersPage, setMembersPage] = useState(1);
+  const MEMBERS_PAGE_SIZE = 20;
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showBugForm, setShowBugForm] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -55,17 +61,26 @@ export default function ProjectDetailPage() {
     },
   });
 
+  const { data: allProjectMembers } = useProjectMembers(showEdit ? id : undefined);
+  const { data: projectMembersPage } = useProjectMembersPaginated(
+    id,
+    membersPage,
+    MEMBERS_PAGE_SIZE
+  );
+  const { data: assignableProjectMembers } = useProjectMembers(id);
+  const assignableUsers = projectMembersToUsers(assignableProjectMembers);
+
   useEffect(() => {
-    if (project && showEdit) {
+    if (project && showEdit && allProjectMembers) {
       setEditForm({
         name: project.name,
         code: project.code,
         description: project.description,
         status: project.status,
-        member_ids: project.members?.map((m) => m.user) ?? [],
+        member_ids: allProjectMembers.map((m) => m.user),
       });
     }
-  }, [project, showEdit]);
+  }, [project, showEdit, allProjectMembers]);
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks", { project: id }],
@@ -250,14 +265,22 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {project.members && project.members.length > 0 && (
+      {(project.member_count ?? 0) > 0 && (
         <section className="mt-8">
-          <h2 className="font-semibold text-lg text-slate-900">Team members</h2>
+          <h2 className="font-semibold text-lg text-slate-900">
+            Team members ({project.member_count ?? 0})
+          </h2>
           <ul className="mt-3 space-y-2">
-            {project.members.map((m) => (
+            {projectMembersPage?.results.map((m) => (
               <MemberRow key={m.id} member={m} />
             ))}
           </ul>
+          <PaginationBar
+            page={membersPage}
+            pageSize={MEMBERS_PAGE_SIZE}
+            totalCount={projectMembersPage?.count ?? project.member_count ?? 0}
+            onPageChange={setMembersPage}
+          />
         </section>
       )}
 
@@ -269,43 +292,78 @@ export default function ProjectDetailPage() {
             e.preventDefault();
             updateProject.mutate();
           }}
-          className="mt-6 bg-white border rounded-xl p-5 space-y-3"
+          className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
         >
-          <h2 className="font-semibold">Edit project</h2>
-          <input
-            required
-            className="w-full border rounded-lg px-3 py-2"
-            value={editForm.name}
-            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-          />
-          <input
-            required
-            className="w-full border rounded-lg px-3 py-2"
-            value={editForm.code}
-            onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
-          />
-          <textarea
-            className="w-full border rounded-lg px-3 py-2"
-            value={editForm.description}
-            onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-          />
-          <select
-            className="w-full border rounded-lg px-3 py-2"
-            value={editForm.status}
-            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-          >
-            <option value="active">Active</option>
-            <option value="on_hold">On Hold</option>
-            <option value="archived">Archived</option>
-          </select>
-          <ProjectMemberSelect
-            users={users ?? []}
-            selected={editForm.member_ids}
-            onChange={(member_ids) => setEditForm({ ...editForm, member_ids })}
-          />
-          <button type="submit" className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
-            Save changes
-          </button>
+          <div className="border-b border-slate-100 px-6 py-4">
+            <h2 className="font-semibold text-slate-900">Edit project</h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Update details and manage who has access to this project.
+            </p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block space-y-1">
+                <span className="text-sm font-medium text-slate-700">Name</span>
+                <input
+                  required
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-sm font-medium text-slate-700">Code</span>
+                <input
+                  required
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm font-mono text-sm"
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                />
+              </label>
+            </div>
+            <label className="block space-y-1">
+              <span className="text-sm font-medium text-slate-700">Description</span>
+              <textarea
+                rows={3}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </label>
+            <label className="block space-y-1 max-w-xs">
+              <span className="text-sm font-medium text-slate-700">Status</span>
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 shadow-sm"
+                value={editForm.status}
+                onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+              >
+                <option value="active">Active</option>
+                <option value="on_hold">On Hold</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+            <ProjectMemberSelect
+              selected={editForm.member_ids}
+              onChange={(member_ids) => setEditForm({ ...editForm, member_ids })}
+              initialUsers={projectMembersToUsers(allProjectMembers)}
+            />
+          </div>
+          <div className="flex gap-2 border-t border-slate-100 bg-slate-50/80 px-6 py-4">
+            <button
+              type="submit"
+              disabled={updateProject.isPending}
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              Save changes
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowEdit(false)}
+              className="border border-slate-200 px-4 py-2 rounded-lg text-sm"
+            >
+              Cancel
+            </button>
+          </div>
         </form>
       )}
 
@@ -362,7 +420,7 @@ export default function ProjectDetailPage() {
           <div className="mt-4">
             <TaskCreateForm
               form={taskForm}
-              users={users ?? []}
+              users={assignableUsers}
               onChange={setTaskForm}
               onSubmit={(files) => createTask.mutate(files)}
               isSubmitting={createTask.isPending}
@@ -407,7 +465,7 @@ export default function ProjectDetailPage() {
           <div className="mt-4">
             <BugCreateForm
               form={bugForm}
-              users={users ?? []}
+              users={assignableUsers}
               onChange={setBugForm}
               onSubmit={(files) => createBug.mutate(files)}
               isSubmitting={createBug.isPending}

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import PaginationBar from "../components/PaginationBar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Navigate, useLocation } from "react-router-dom";
 import api, { unwrap } from "../api/client";
@@ -7,8 +8,10 @@ import UserCard from "../components/UserCard";
 import UserPhotoUpload from "../components/UserPhotoUpload";
 import { useAuth } from "../context/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
-import { buildQueryString } from "../utils/buildQueryString";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import type { ApiResponse, Department, Paginated, Role, User } from "../types";
+
+const PAGE_SIZE = 20;
 
 const emptyUserFilters = {
   search: "",
@@ -40,7 +43,12 @@ export default function UsersPage() {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [filters, setFilters] = useState(emptyUserFilters);
+  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(filters.search);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filters.access_role, filters.department, filters.is_active]);
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -79,28 +87,19 @@ export default function UsersPage() {
     },
   });
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: [
-      "users",
-      debouncedSearch,
-      filters.access_role,
-      filters.department,
-      filters.is_active,
-    ],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<User> | User[]>>(
-        `/auth/users/${buildQueryString({
-          search: debouncedSearch,
-          access_role: filters.access_role,
-          department: filters.department,
-          is_active: filters.is_active,
-          page_size: 100,
-        })}`
-      );
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
+  const { data: userPage, isLoading } = usePaginatedList<User>({
+    queryKey: ["users", debouncedSearch, filters.access_role, filters.department, filters.is_active],
+    path: "/auth/users/",
+    params: {
+      search: debouncedSearch,
+      access_role: filters.access_role,
+      department: filters.department,
+      is_active: filters.is_active,
     },
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const users = userPage?.results ?? [];
 
   const clearPhoto = () => {
     setProfilePhoto(null);
@@ -259,7 +258,10 @@ export default function UsersPage() {
         onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
         searchPlaceholder="Search by name, email, or username…"
         showClear={hasActiveFilters}
-        onClear={() => setFilters(emptyUserFilters)}
+        onClear={() => {
+          setFilters(emptyUserFilters);
+          setPage(1);
+        }}
       >
         <FilterSelect
           label="Role"
@@ -475,6 +477,13 @@ export default function UsersPage() {
           {hasActiveFilters ? "No users match your filters." : "No users yet."}
         </p>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={userPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </div>
   );
 }

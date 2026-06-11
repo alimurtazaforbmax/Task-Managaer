@@ -1,10 +1,12 @@
 from django.conf import settings
+from django.db.models import Q
 from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.mixins import StandardResponseMixin, member_project_ids, user_project_ids
+from apps.core.pagination import paginate_action_list
 from apps.accounts.permissions_util import user_has_permission
 from apps.core.permissions import IsAdmin
 from apps.core.responses import error_response, success_response
@@ -107,10 +109,21 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     def members(self, request, pk=None):
         project = self.get_object()
         if request.method == "GET":
-            serializer = ProjectMemberSerializer(
-                project.members.select_related("user"), many=True
+            queryset = project.members.select_related("user").order_by("joined_at", "id")
+            search = request.query_params.get("search", "").strip()
+            if search:
+                queryset = queryset.filter(
+                    Q(user__username__icontains=search)
+                    | Q(user__first_name__icontains=search)
+                    | Q(user__last_name__icontains=search)
+                    | Q(user__email__icontains=search)
+                )
+            return paginate_action_list(
+                request,
+                queryset,
+                ProjectMemberSerializer,
+                context={"request": request},
             )
-            return success_response(data=serializer.data)
         if not user_has_permission(request.user, "can_manage_projects"):
             return error_response(
                 "You do not have permission to manage project members.",
@@ -151,11 +164,20 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     def documents(self, request, pk=None):
         project = self.get_object()
         if request.method == "GET":
-            docs = project.documents.select_related("uploaded_by")
-            serializer = ProjectDocumentSerializer(
-                docs, many=True, context={"request": request}
+            docs = project.documents.select_related("uploaded_by").order_by(
+                "-created_at", "-id"
             )
-            return success_response(data=serializer.data)
+            search = request.query_params.get("search", "").strip()
+            if search:
+                docs = docs.filter(
+                    Q(title__icontains=search) | Q(original_name__icontains=search)
+                )
+            return paginate_action_list(
+                request,
+                docs,
+                ProjectDocumentSerializer,
+                context={"request": request},
+            )
 
         file_obj = request.FILES.get("file")
         if not file_obj:

@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import FilterBar, { FilterSelect, formatFilterLabel } from "../components/FilterBar";
+import PaginationBar from "../components/PaginationBar";
 import PageContainer from "../components/PageContainer";
 import WorkItemRow from "../components/WorkItemRow";
 import { BugCreateForm, emptyBugForm } from "../components/WorkItemForms";
@@ -9,10 +10,12 @@ import { useAuth } from "../context/AuthContext";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePermissions } from "../hooks/usePermissions";
 import { projectMembersToUsers, useProjectMembers } from "../hooks/useProjectMembers";
+import { usePaginatedList } from "../hooks/usePaginatedList";
 import { useProjects } from "../hooks/useProjects";
-import { buildQueryString } from "../utils/buildQueryString";
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
-import type { ApiResponse, Bug, Paginated } from "../types";
+import type { ApiResponse, Bug } from "../types";
+
+const PAGE_SIZE = 20;
 
 const BUG_STATUSES = [
   "open",
@@ -45,7 +48,20 @@ export default function BugsPage() {
   const [projectId, setProjectId] = useState("");
   const [form, setForm] = useState(emptyBugForm);
   const [filters, setFilters] = useState(emptyFilters);
+  const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(filters.search);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    debouncedSearch,
+    filters.project,
+    filters.status,
+    filters.severity,
+    filters.priority,
+    filters.environment,
+    filters.assignee,
+  ]);
 
   const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
   const assignableUsers = projectMembersToUsers(projectMembers);
@@ -62,7 +78,7 @@ export default function BugsPage() {
       filters.assignee
   );
 
-  const { data: bugs, isLoading } = useQuery({
+  const { data: bugPage, isLoading } = usePaginatedList<Bug>({
     queryKey: [
       "bugs",
       debouncedSearch,
@@ -73,23 +89,20 @@ export default function BugsPage() {
       filters.environment,
       filters.assignee,
     ],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<Paginated<Bug> | Bug[]>>(
-        `/bugs/${buildQueryString({
-          search: debouncedSearch,
-          project: filters.project,
-          status: filters.status,
-          severity: filters.severity,
-          priority: filters.priority,
-          environment: filters.environment,
-          assignees: filters.assignee === "me" && user ? user.id : undefined,
-          page_size: 100,
-        })}`
-      );
-      const d = unwrap(res);
-      return Array.isArray(d) ? d : d.results;
+    path: "/bugs/",
+    params: {
+      search: debouncedSearch,
+      project: filters.project,
+      status: filters.status,
+      severity: filters.severity,
+      priority: filters.priority,
+      environment: filters.environment,
+      assignees: filters.assignee === "me" && user ? user.id : undefined,
     },
+    page,
+    pageSize: PAGE_SIZE,
   });
+  const bugs = bugPage?.results ?? [];
 
   const createBug = useMutation({
     mutationFn: async (attachments: File[]) => {
@@ -141,7 +154,10 @@ export default function BugsPage() {
         onSearchChange={(search) => setFilters((f) => ({ ...f, search }))}
         searchPlaceholder="Search bugs…"
         showClear={hasActiveFilters}
-        onClear={() => setFilters(emptyFilters)}
+        onClear={() => {
+          setFilters(emptyFilters);
+          setPage(1);
+        }}
       >
         <FilterSelect
           label="Project"
@@ -248,6 +264,13 @@ export default function BugsPage() {
           {hasActiveFilters ? "No bugs match your filters." : "No bugs yet."}
         </p>
       )}
+      <PaginationBar
+        page={page}
+        pageSize={PAGE_SIZE}
+        totalCount={bugPage?.count ?? 0}
+        onPageChange={setPage}
+        isLoading={isLoading}
+      />
     </PageContainer>
   );
 }
