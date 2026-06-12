@@ -12,6 +12,7 @@ import BugsPage from "./pages/BugsPage";
 import BugDetailPage from "./pages/BugDetailPage";
 import UsersPage from "./pages/UsersPage";
 import UserDetailPage from "./pages/UserDetailPage";
+import TeamPage from "./pages/TeamPage";
 import DepartmentsPage from "./pages/DepartmentsPage";
 import DepartmentDetailPage from "./pages/DepartmentDetailPage";
 import TicketsPage from "./pages/TicketsPage";
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="roles" element={<RolesPage />} />
         <Route path="departments" element={<DepartmentsPage />} />
         <Route path="departments/:id" element={<DepartmentDetailPage />} />
+        <Route path="team" element={<TeamPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="users/:id" element={<UserDetailPage />} />
       </Route>

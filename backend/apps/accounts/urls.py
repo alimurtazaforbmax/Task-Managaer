@@ -9,6 +9,7 @@ from apps.accounts.views import (
     RefreshView,
     RegisterView,
     RoleViewSet,
+    TeamSummaryView,
     UserViewSet,
 )
 
@@ -23,5 +24,6 @@ urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
     path("refresh/", RefreshView.as_view(), name="refresh"),
     path("me/", MeView.as_view(), name="me"),
+    path("team/summary/", TeamSummaryView.as_view(), name="team-summary"),
     path("", include(router.urls)),
 ]

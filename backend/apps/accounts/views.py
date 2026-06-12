@@ -23,6 +23,12 @@ from apps.accounts.report_permissions import (
     can_view_user_profile,
     can_view_users_list,
 )
+from apps.accounts.team_permissions import (
+    can_view_org_wide_users,
+    can_view_team,
+    teammate_user_ids,
+)
+from apps.accounts.team_summary import build_team_summary
 from apps.accounts.user_report import build_user_report
 from apps.accounts.user_summary import build_user_summary
 from apps.core.permissions import IsAdmin
@@ -31,6 +37,36 @@ from apps.core.responses import error_response, success_response
 from apps.core.services import record_audit_log
 
 User = get_user_model()
+
+
+class TeamSummaryView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not can_view_team(request.user):
+            return error_response(
+                "You do not have permission to view team progress.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        project_raw = request.query_params.get("project", "").strip()
+        project_id = int(project_raw) if project_raw.isdigit() else None
+        period = request.query_params.get("period")
+        reference = parse_report_reference_param(request)
+        search = request.query_params.get("search", "").strip() or None
+        payload = build_team_summary(
+            request.user,
+            request,
+            project_id=project_id,
+            period=period,
+            reference=reference,
+            search=search,
+        )
+        if project_id and project_id not in {p["id"] for p in payload["projects"]}:
+            return error_response(
+                "Project not found or you are not a member.",
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return success_response(data=payload)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -306,6 +342,17 @@ class UserViewSet(viewsets.ModelViewSet):
         if self.action in ("create", "update", "partial_update", "destroy"):
             return [IsAdmin()]
         return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = User.objects.select_related("department", "access_role").all()
+        actor = self.request.user
+        if not actor or not actor.is_authenticated:
+            return queryset.none()
+        if can_view_org_wide_users(actor):
+            return queryset
+        if can_view_team(actor):
+            return queryset.filter(id__in=teammate_user_ids(actor))
+        return queryset.none()
 
     def list(self, request, *args, **kwargs):
         if not can_view_users_list(request.user):

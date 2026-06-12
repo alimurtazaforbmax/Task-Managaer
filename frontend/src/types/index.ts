@@ -86,6 +86,7 @@ export interface UserPermissions extends Record<string, boolean> {
   can_manage_departments: boolean;
   can_manage_roles: boolean;
   can_view_audit_logs: boolean;
+  can_view_team: boolean;
   can_view_users: boolean;
   can_view_user_details: boolean;
   can_generate_user_reports: boolean;
@@ -395,6 +396,47 @@ export interface UserProjectBreakdown {
   assigned_bugs: number;
   completed_tasks: number;
   completed_bugs: number;
+}
+
+export interface TeamMemberStats {
+  hours_logged: number;
+  task_hours: number;
+  bug_hours: number;
+  open_tasks: number;
+  overdue_tasks: number;
+  completed_tasks: number;
+  open_bugs: number;
+  completed_bugs: number;
+  projects_count: number;
+}
+
+export interface TeamMemberProjectRole {
+  project_id: number;
+  project_name: string;
+  project_code: string;
+  role: string;
+}
+
+export interface TeamMemberEntry {
+  user: User;
+  project_roles: TeamMemberProjectRole[];
+  stats: TeamMemberStats;
+}
+
+export interface TeamSummary {
+  period?: string;
+  period_label?: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  report_reference?: string;
+  selected_project_id?: number | null;
+  projects: { id: number; name: string; code: string; status: string }[];
+  stats: TeamMemberStats & {
+    member_count: number;
+    active_members: number;
+    project_count: number;
+  };
+  members: TeamMemberEntry[];
 }
 
 export interface UserSummary {

@@ -43,6 +43,10 @@ export default function ProjectDetailPage() {
   const isAdmin = user?.role === "admin";
   const canReport =
     isAdmin || permissions.can_generate_project_reports;
+  const canViewProfiles =
+    isAdmin ||
+    permissions.can_view_user_details ||
+    permissions.can_view_team;
   const [showEdit, setShowEdit] = useState(false);
   const [membersPage, setMembersPage] = useState(1);
   const MEMBERS_PAGE_SIZE = 20;
@@ -287,12 +291,22 @@ export default function ProjectDetailPage() {
 
       {(project.member_count ?? 0) > 0 && (
         <section className="mt-8">
-          <h2 className="font-semibold text-lg text-slate-900">
-            Team members ({project.member_count ?? 0})
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-lg text-slate-900">
+              Team members ({project.member_count ?? 0})
+            </h2>
+            {canViewProfiles && (
+              <Link
+                to={`/team?project=${id}`}
+                className="text-sm font-medium text-brand-600 hover:text-brand-700"
+              >
+                Team overview →
+              </Link>
+            )}
+          </div>
           <ul className="mt-3 space-y-2">
             {projectMembersPage?.results.map((m) => (
-              <MemberRow key={m.id} member={m} />
+              <MemberRow key={m.id} member={m} linkToProfile={canViewProfiles} />
             ))}
           </ul>
           <PaginationBar

@@ -18,6 +18,7 @@ const DEFAULT: UserPermissions = {
   can_manage_departments: false,
   can_manage_roles: false,
   can_view_audit_logs: false,
+  can_view_team: false,
   can_view_users: false,
   can_view_user_details: false,
   can_generate_user_reports: false,

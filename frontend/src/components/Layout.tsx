@@ -49,6 +49,9 @@ export default function Layout() {
             ...(user?.role === "admin" || permissions.can_manage_departments
               ? [{ to: "/departments", label: "Departments" }]
               : []),
+            ...(user?.role === "admin" || permissions.can_view_team
+              ? [{ to: "/team", label: "Team" }]
+              : []),
             ...(user?.role === "admin" ||
             permissions.can_view_users ||
             permissions.can_manage_users
@@ -85,6 +88,9 @@ export default function Layout() {
               : []),
             ...(user?.role === "admin" || permissions.can_manage_departments
               ? [{ to: "/departments", label: "Depts" }]
+              : []),
+            ...(user?.role === "admin" || permissions.can_view_team
+              ? [{ to: "/team", label: "Team" }]
               : []),
             ...(user?.role === "admin" ||
             permissions.can_view_users ||
