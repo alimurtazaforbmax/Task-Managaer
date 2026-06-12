@@ -5,7 +5,7 @@ from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
 from apps.bugs.constants import BUG_CLOSED_STATUSES
 from apps.bugs.models import Bug
-from apps.core.mixins import user_project_ids
+from apps.accounts.team_permissions import actor_team_project_ids
 from apps.core.models import TimeEntry
 from apps.core.report_periods import normalize_report_period, resolve_report_period
 from apps.projects.models import Project, ProjectMember
@@ -82,7 +82,7 @@ def _member_stats(user: User, project_ids: list[int], start, end) -> dict:
 
 
 def _resolve_scope(actor: User, project_id: int | None) -> list[int]:
-    actor_projects = list(user_project_ids(actor))
+    actor_projects = actor_team_project_ids(actor)
     if not project_id:
         return actor_projects
     if project_id not in actor_projects:
@@ -103,7 +103,7 @@ def build_team_summary(
     start, end, period_label = resolve_report_period(normalized, reference)
     anchor = reference or timezone.now().date()
 
-    actor_project_ids = list(user_project_ids(actor))
+    actor_project_ids = actor_team_project_ids(actor)
     scope_ids = _resolve_scope(actor, project_id)
     projects = list(
         Project.objects.filter(id__in=actor_project_ids).order_by("name").values(

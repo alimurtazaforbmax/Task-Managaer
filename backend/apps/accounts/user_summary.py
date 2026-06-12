@@ -7,6 +7,7 @@ from apps.bugs.models import Bug
 from apps.bugs.serializers import BugListSerializer
 from apps.core.models import TimeEntry
 from apps.core.report_periods import normalize_report_period, resolve_report_period
+from apps.accounts.team_permissions import can_view_org_wide_users, managed_project_ids
 from apps.projects.models import Project, ProjectMember
 from apps.tasks.models import Task
 from apps.tasks.serializers import TaskListSerializer
@@ -29,6 +30,22 @@ def resolve_user_project_scope(
         return member_ids, False
     allowed = set(member_ids)
     scoped = [pid for pid in requested_ids if pid in allowed]
+    return scoped, True
+
+
+def resolve_viewer_report_scope(
+    viewer: User | None,
+    target: User,
+    requested_ids: list[int] | None,
+) -> tuple[list[int], bool]:
+    """Apply viewer permissions to the target user's report project scope."""
+    scope_ids, filtered_subset = resolve_user_project_scope(target, requested_ids)
+
+    if not viewer or viewer.pk == target.pk or can_view_org_wide_users(viewer):
+        return scope_ids, filtered_subset
+
+    managed = set(managed_project_ids(viewer))
+    scoped = [pid for pid in scope_ids if pid in managed]
     return scoped, True
 
 
@@ -103,14 +120,18 @@ def build_user_summary(
     period: str | None = None,
     project_ids: list[int] | None = None,
     reference=None,
+    viewer: User | None = None,
 ) -> dict:
     today = timezone.now().date()
     context = {"request": request}
     normalized = normalize_report_period(period)
     start, end, period_label = resolve_report_period(normalized, reference)
     anchor = reference or today
+    viewer = viewer or getattr(request, "user", None)
 
-    scope_ids, filtered_subset = resolve_user_project_scope(user, project_ids)
+    scope_ids, filtered_subset = resolve_viewer_report_scope(
+        viewer, user, project_ids
+    )
 
     assigned_tasks = Task.objects.filter(assignees=user)
     assigned_bugs = Bug.objects.filter(assignees=user)
@@ -173,6 +194,11 @@ def build_user_summary(
         .select_related("project")
         .order_by("project__name")
     )
+    filter_memberships = all_memberships
+    if viewer and viewer.pk != user.pk and not can_view_org_wide_users(viewer):
+        filter_memberships = all_memberships.filter(
+            project_id__in=managed_project_ids(viewer)
+        )
     available_projects = [
         {
             "id": membership.project_id,
@@ -182,10 +208,10 @@ def build_user_summary(
             "role": membership.role,
             "joined_at": membership.joined_at,
         }
-        for membership in all_memberships
+        for membership in filter_memberships
     ]
 
-    memberships = all_memberships
+    memberships = filter_memberships
     if scope_ids:
         memberships = memberships.filter(project_id__in=scope_ids)
 
