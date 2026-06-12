@@ -98,6 +98,30 @@ PERMISSION_REGISTRY: list[dict[str, str]] = [
         "description": "View the system audit trail.",
     },
     {
+        "codename": "can_view_users",
+        "name": "View users",
+        "category": "Reports & users",
+        "description": "Browse the team directory and user list.",
+    },
+    {
+        "codename": "can_view_user_details",
+        "name": "View user details",
+        "category": "Reports & users",
+        "description": "Open user profiles, stats, and project membership.",
+    },
+    {
+        "codename": "can_generate_user_reports",
+        "name": "Generate user reports",
+        "category": "Reports & users",
+        "description": "Create progress reports for users (daily, weekly, monthly, yearly).",
+    },
+    {
+        "codename": "can_generate_project_reports",
+        "name": "Generate project reports",
+        "category": "Reports & users",
+        "description": "Create progress reports for projects (daily, weekly, monthly, yearly).",
+    },
+    {
         "codename": "can_create_features",
         "name": "Create features",
         "category": "Planning",
@@ -165,6 +189,10 @@ SYSTEM_ROLES: list[dict] = [
             "can_create_sprints",
             "can_edit_sprints",
             "can_delete_sprints",
+            "can_view_users",
+            "can_view_user_details",
+            "can_generate_user_reports",
+            "can_generate_project_reports",
         ],
     },
     {
@@ -186,6 +214,10 @@ SYSTEM_ROLES: list[dict] = [
             "can_edit_features",
             "can_create_sprints",
             "can_edit_sprints",
+            "can_view_users",
+            "can_view_user_details",
+            "can_generate_user_reports",
+            "can_generate_project_reports",
         ],
     },
     {

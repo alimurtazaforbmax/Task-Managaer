@@ -7,6 +7,7 @@ import FilterBar, { FilterSelect } from "../components/FilterBar";
 import UserCard from "../components/UserCard";
 import UserPhotoUpload from "../components/UserPhotoUpload";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { usePaginatedList } from "../hooks/usePaginatedList";
 import type { ApiResponse, Department, Paginated, Role, User } from "../types";
@@ -36,6 +37,7 @@ function FieldLabel({
 
 export default function UsersPage() {
   const { user } = useAuth();
+  const permissions = usePermissions();
   const location = useLocation();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -233,7 +235,11 @@ export default function UsersPage() {
   const previewName =
     [form.first_name, form.last_name].filter(Boolean).join(" ") || form.username || "User";
 
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
+  const canViewUsers =
+    user?.role === "admin" || permissions.can_view_users || permissions.can_manage_users;
+  const canManageUsers = user?.role === "admin" || permissions.can_manage_users;
+
+  if (!canViewUsers) return <Navigate to="/" replace />;
 
   return (
     <div>
@@ -242,15 +248,17 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900">Users</h1>
           <p className="text-slate-500 mt-1">Team profiles, roles, and account settings</p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(true);
-          }}
-          className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
-        >
-          New user
-        </button>
+        {canManageUsers && (
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+            }}
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 shadow-sm"
+          >
+            New user
+          </button>
+        )}
       </div>
 
       <FilterBar

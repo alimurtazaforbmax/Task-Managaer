@@ -2,12 +2,23 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api, { unwrap } from "../api/client";
 import { downloadReportPdf, fetchReportPdfBlob } from "../utils/downloadReportPdf";
-import type { ApiResponse, WorkItemReport } from "../types";
+import ReportPeriodSelect, {
+  createReportPeriodState,
+  type ReportPeriodState,
+} from "./ReportPeriodSelect";
+import ReportProjectFilter from "./ReportProjectFilter";
+import { appendReportQueryParams } from "../utils/reportQuery";
+import type { ApiResponse, UserProjectMembership, WorkItemReport } from "../types";
 
 interface ReportModalProps {
   readonly url: string;
   readonly filename: string;
   readonly onClose: () => void;
+  readonly periodState?: ReportPeriodState;
+  readonly onPeriodStateChange?: (value: ReportPeriodState) => void;
+  readonly projects?: UserProjectMembership[];
+  readonly selectedProjects?: number[];
+  readonly onProjectsChange?: (ids: number[]) => void;
 }
 
 const TONE_STYLES: Record<string, string> = {
@@ -105,15 +116,30 @@ function ReportPreview({ report }: { report: WorkItemReport }) {
   );
 }
 
-export default function ReportModal({ url, filename, onClose }: ReportModalProps) {
+export default function ReportModal({
+  url,
+  filename,
+  onClose,
+  periodState,
+  onPeriodStateChange,
+  projects = [],
+  selectedProjects = [],
+  onProjectsChange,
+}: ReportModalProps) {
+  const resolvedPeriod = periodState ?? createReportPeriodState();
+  const reportUrl = appendReportQueryParams(url, {
+    period: resolvedPeriod.period,
+    reference: resolvedPeriod.reference,
+    projects: selectedProjects,
+  });
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [showPdf, setShowPdf] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   const { data: report, isLoading, isError } = useQuery({
-    queryKey: ["report", url],
+    queryKey: ["report", reportUrl],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<WorkItemReport>>(url);
+      const res = await api.get<ApiResponse<WorkItemReport>>(reportUrl);
       return unwrap(res);
     },
   });
@@ -121,7 +147,7 @@ export default function ReportModal({ url, filename, onClose }: ReportModalProps
   useEffect(() => {
     if (!showPdf) return;
     let objectUrl: string | null = null;
-    fetchReportPdfBlob(url)
+    fetchReportPdfBlob(reportUrl)
       .then((blob) => {
         objectUrl = URL.createObjectURL(blob);
         setPdfPreviewUrl(objectUrl);
@@ -130,7 +156,7 @@ export default function ReportModal({ url, filename, onClose }: ReportModalProps
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [showPdf, url]);
+  }, [showPdf, reportUrl]);
 
   useEffect(() => {
     return () => {
@@ -161,6 +187,24 @@ export default function ReportModal({ url, filename, onClose }: ReportModalProps
             ×
           </button>
         </div>
+
+        {(onPeriodStateChange || onProjectsChange) && (
+          <div className="px-5 pt-3 border-b border-slate-100 space-y-3">
+            {onPeriodStateChange && (
+              <ReportPeriodSelect
+                value={resolvedPeriod}
+                onChange={onPeriodStateChange}
+              />
+            )}
+            {onProjectsChange && projects.length > 0 && (
+              <ReportProjectFilter
+                projects={projects}
+                selected={selectedProjects}
+                onChange={onProjectsChange}
+              />
+            )}
+          </div>
+        )}
 
         <div className="flex gap-2 px-5 pt-3 border-b border-slate-100">
           <button
@@ -212,7 +256,7 @@ export default function ReportModal({ url, filename, onClose }: ReportModalProps
             onClick={async () => {
               setDownloading(true);
               try {
-                await downloadReportPdf(url, filename);
+                await downloadReportPdf(reportUrl, filename);
               } finally {
                 setDownloading(false);
               }

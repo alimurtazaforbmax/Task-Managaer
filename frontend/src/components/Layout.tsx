@@ -3,6 +3,7 @@ import SidebarUserPanel from "./SidebarUserPanel";
 import ToastContainer from "./ToastContainer";
 import TopBar from "./TopBar";
 import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 import { formatRoleLabel } from "../utils/projectStyle";
 import { useMarkNotificationFromUrl } from "../hooks/useMarkNotificationFromUrl";
 import { useNotificationWatcher } from "../hooks/useNotificationWatcher";
@@ -20,6 +21,7 @@ const baseNav = [
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const permissions = usePermissions();
 
   usePushNotifications(!!user);
   useNotificationWatcher(!!user);
@@ -41,13 +43,19 @@ export default function Layout() {
         <nav className="flex-1 p-4 space-y-1 hidden md:block">
           {[
             ...baseNav,
-            ...(user?.role === "admin"
-              ? [
-                  { to: "/roles", label: "Roles" },
-                  { to: "/departments", label: "Departments" },
-                  { to: "/users", label: "Users" },
-                  { to: "/admin/logs", label: "Logs" },
-                ]
+            ...(user?.role === "admin" || permissions.can_manage_roles
+              ? [{ to: "/roles", label: "Roles" }]
+              : []),
+            ...(user?.role === "admin" || permissions.can_manage_departments
+              ? [{ to: "/departments", label: "Departments" }]
+              : []),
+            ...(user?.role === "admin" ||
+            permissions.can_view_users ||
+            permissions.can_manage_users
+              ? [{ to: "/users", label: "Users" }]
+              : []),
+            ...(user?.role === "admin" || permissions.can_view_audit_logs
+              ? [{ to: "/admin/logs", label: "Logs" }]
               : []),
           ].map((item) => (
             <NavLink
@@ -72,13 +80,19 @@ export default function Layout() {
         <nav className="md:hidden flex gap-1 overflow-x-auto px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
           {[
             ...baseNav,
-            ...(user?.role === "admin"
-              ? [
-                  { to: "/roles", label: "Roles" },
-                  { to: "/departments", label: "Depts" },
-                  { to: "/users", label: "Users" },
-                  { to: "/admin/logs", label: "Logs" },
-                ]
+            ...(user?.role === "admin" || permissions.can_manage_roles
+              ? [{ to: "/roles", label: "Roles" }]
+              : []),
+            ...(user?.role === "admin" || permissions.can_manage_departments
+              ? [{ to: "/departments", label: "Depts" }]
+              : []),
+            ...(user?.role === "admin" ||
+            permissions.can_view_users ||
+            permissions.can_manage_users
+              ? [{ to: "/users", label: "Users" }]
+              : []),
+            ...(user?.role === "admin" || permissions.can_view_audit_logs
+              ? [{ to: "/admin/logs", label: "Logs" }]
               : []),
           ].map((item) => (
             <NavLink

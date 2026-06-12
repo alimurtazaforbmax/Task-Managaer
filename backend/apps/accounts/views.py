@@ -18,9 +18,15 @@ from apps.accounts.serializers import (
 )
 from apps.accounts.models import Permission, Role
 from apps.accounts.department_summary import build_department_summary
+from apps.accounts.report_permissions import (
+    can_generate_user_report,
+    can_view_user_profile,
+    can_view_users_list,
+)
 from apps.accounts.user_report import build_user_report
 from apps.accounts.user_summary import build_user_summary
 from apps.core.permissions import IsAdmin
+from apps.core.report_filters import parse_project_ids_param, parse_report_reference_param
 from apps.core.responses import error_response, success_response
 from apps.core.services import record_audit_log
 
@@ -302,6 +308,11 @@ class UserViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def list(self, request, *args, **kwargs):
+        if not can_view_users_list(request.user):
+            return error_response(
+                "You do not have permission to view users.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
@@ -311,26 +322,58 @@ class UserViewSet(viewsets.ModelViewSet):
         return success_response(data=serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
-        serializer = self.get_serializer(
-            self.get_object(), context={"request": request}
-        )
+        user = self.get_object()
+        if not can_view_user_profile(request.user, user):
+            return error_response(
+                "You do not have permission to view this user.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        serializer = self.get_serializer(user, context={"request": request})
         return success_response(data=serializer.data)
 
     @action(detail=True, methods=["get"], url_path="summary")
     def summary(self, request, pk=None):
         user = self.get_object()
-        payload = build_user_summary(user, request)
+        if not can_view_user_profile(request.user, user):
+            return error_response(
+                "You do not have permission to view this user profile.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        period = request.query_params.get("period")
+        project_ids = parse_project_ids_param(request)
+        reference = parse_report_reference_param(request)
+        payload = build_user_summary(
+            user,
+            request,
+            period=period,
+            project_ids=project_ids,
+            reference=reference,
+        )
         payload["user"] = UserSerializer(user, context={"request": request}).data
         return success_response(data=payload)
 
     @action(detail=True, methods=["get"], url_path="report")
     def report(self, request, pk=None):
         user = self.get_object()
+        if not can_generate_user_report(request.user, user):
+            return error_response(
+                "You do not have permission to generate this user report.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        period = request.query_params.get("period")
+        project_ids = parse_project_ids_param(request)
+        reference = parse_report_reference_param(request)
         if request.query_params.get("export") == "pdf":
             try:
                 from apps.accounts.user_report import build_user_report_pdf
 
-                pdf_bytes = build_user_report_pdf(user, request)
+                pdf_bytes = build_user_report_pdf(
+                    user,
+                    request,
+                    period=period,
+                    project_ids=project_ids,
+                    reference=reference,
+                )
             except ModuleNotFoundError as exc:
                 if exc.name == "reportlab":
                     return error_response(
@@ -343,7 +386,15 @@ class UserViewSet(viewsets.ModelViewSet):
                 f'attachment; filename="user-report-{user.username}.pdf"'
             )
             return response
-        return success_response(data=build_user_report(user, request))
+        return success_response(
+            data=build_user_report(
+                user,
+                request,
+                period=period,
+                project_ids=project_ids,
+                reference=reference,
+            )
+        )
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

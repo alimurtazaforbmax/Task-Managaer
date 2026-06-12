@@ -5,6 +5,10 @@ import api, { unwrap } from "../api/client";
 import BackLink from "../components/BackLink";
 import PageContainer from "../components/PageContainer";
 import ReportModal from "../components/ReportModal";
+import ReportPeriodSelect, {
+  createReportPeriodState,
+  type ReportPeriodState,
+} from "../components/ReportPeriodSelect";
 import MemberRow from "../components/MemberRow";
 import PaginationBar from "../components/PaginationBar";
 import ProjectDocumentsSection from "../components/ProjectDocumentsSection";
@@ -37,12 +41,17 @@ export default function ProjectDetailPage() {
   const permissions = usePermissions();
   const qc = useQueryClient();
   const isAdmin = user?.role === "admin";
+  const canReport =
+    isAdmin || permissions.can_generate_project_reports;
   const [showEdit, setShowEdit] = useState(false);
   const [membersPage, setMembersPage] = useState(1);
   const MEMBERS_PAGE_SIZE = 20;
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showBugForm, setShowBugForm] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState<ReportPeriodState>(
+    createReportPeriodState
+  );
   const [taskForm, setTaskForm] = useState(emptyTaskForm);
   const [bugForm, setBugForm] = useState(emptyBugForm);
   const [editForm, setEditForm] = useState({
@@ -192,10 +201,12 @@ export default function ProjectDetailPage() {
 
   return (
     <PageContainer>
-      {showReport && id && (
+      {showReport && id && canReport && (
         <ReportModal
           url={`/projects/${id}/report/`}
-          filename={`project-report-${project.code}.pdf`}
+          filename={`project-report-${project.code}-${reportPeriod.period}.pdf`}
+          periodState={reportPeriod}
+          onPeriodStateChange={setReportPeriod}
           onClose={() => setShowReport(false)}
         />
       )}
@@ -219,14 +230,23 @@ export default function ProjectDetailPage() {
                 <p className="text-slate-500 font-mono text-sm mt-1">{project.code}</p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setShowReport(true)}
-                className="text-sm border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-slate-700"
-              >
-                Progress report
-              </button>
+            <div className="flex flex-wrap items-end gap-2">
+              {canReport && (
+                <>
+                  <ReportPeriodSelect
+                    value={reportPeriod}
+                    onChange={setReportPeriod}
+                    className="min-w-[130px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowReport(true)}
+                    className="text-sm border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 shadow-sm font-medium text-slate-700"
+                  >
+                    Progress report
+                  </button>
+                </>
+              )}
               {isAdmin && (
                 <button
                   type="button"

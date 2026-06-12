@@ -86,6 +86,10 @@ export interface UserPermissions extends Record<string, boolean> {
   can_manage_departments: boolean;
   can_manage_roles: boolean;
   can_view_audit_logs: boolean;
+  can_view_users: boolean;
+  can_view_user_details: boolean;
+  can_generate_user_reports: boolean;
+  can_generate_project_reports: boolean;
   can_create_features: boolean;
   can_edit_features: boolean;
   can_delete_features: boolean;
@@ -379,12 +383,35 @@ export interface UserProjectMembership {
   joined_at: string;
 }
 
+export interface UserProjectBreakdown {
+  id: number;
+  name: string;
+  code: string;
+  status: string;
+  hours_logged: number;
+  task_hours: number;
+  bug_hours: number;
+  assigned_tasks: number;
+  assigned_bugs: number;
+  completed_tasks: number;
+  completed_bugs: number;
+}
+
 export interface UserSummary {
   user: User;
   stats: UserStats;
   projects: UserProjectMembership[];
+  available_projects?: UserProjectMembership[];
   recent_tasks: Task[];
   recent_bugs: Bug[];
+  period?: string;
+  period_label?: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  report_reference?: string;
+  selected_project_ids?: number[];
+  filtered_projects?: boolean;
+  project_breakdown?: UserProjectBreakdown[];
 }
 
 export interface ReportStatCard {
@@ -409,6 +436,10 @@ export interface WorkItemReport {
   title: string;
   generated_at: string;
   report_type?: "user" | "project";
+  period?: string;
+  period_label?: string;
+  period_start?: string | null;
+  period_end?: string | null;
   stat_cards?: ReportStatCard[];
   profile_rows?: ReportProfileRow[];
   sections?: ReportSection[];

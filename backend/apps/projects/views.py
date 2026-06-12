@@ -8,7 +8,9 @@ from rest_framework.permissions import IsAuthenticated
 from apps.core.mixins import StandardResponseMixin, member_project_ids, user_project_ids
 from apps.core.pagination import paginate_action_list
 from apps.accounts.permissions_util import user_has_permission
+from apps.accounts.report_permissions import can_generate_project_report
 from apps.core.permissions import IsAdmin
+from apps.core.report_filters import parse_report_reference_param
 from apps.core.responses import error_response, success_response
 from apps.core.services import record_audit_log
 from apps.core.utils import validate_file_size, validate_mime_type
@@ -141,11 +143,20 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="report")
     def report(self, request, pk=None):
         project = self.get_object()
+        if not can_generate_project_report(request.user, project):
+            return error_response(
+                "You do not have permission to generate project reports.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        period = request.query_params.get("period")
+        reference = parse_report_reference_param(request)
         if request.query_params.get("export") == "pdf":
             try:
                 from apps.projects.project_report import build_project_report_pdf
 
-                pdf_bytes = build_project_report_pdf(project, request)
+                pdf_bytes = build_project_report_pdf(
+                    project, request, period=period, reference=reference
+                )
             except ModuleNotFoundError as exc:
                 if exc.name == "reportlab":
                     return error_response(
@@ -158,7 +169,9 @@ class ProjectViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 f'attachment; filename="project-report-{project.code}.pdf"'
             )
             return response
-        return success_response(data=build_project_report(project, request))
+        return success_response(
+            data=build_project_report(project, request, period=period, reference=reference)
+        )
 
     @action(detail=True, methods=["get", "post"], url_path="documents")
     def documents(self, request, pk=None):
