@@ -13,6 +13,9 @@ import BugDetailPage from "./pages/BugDetailPage";
 import UsersPage from "./pages/UsersPage";
 import UserDetailPage from "./pages/UserDetailPage";
 import TeamPage from "./pages/TeamPage";
+import TestCasesPage from "./pages/TestCasesPage";
+import TestCasesProjectPage from "./pages/TestCasesProjectPage";
+import TestCaseDetailPage from "./pages/TestCaseDetailPage";
 import DepartmentsPage from "./pages/DepartmentsPage";
 import DepartmentDetailPage from "./pages/DepartmentDetailPage";
 import TicketsPage from "./pages/TicketsPage";
@@ -59,6 +62,9 @@ function AppRoutes() {
         <Route path="tasks/:id" element={<TaskDetailPage />} />
         <Route path="bugs" element={<BugsPage />} />
         <Route path="bugs/:id" element={<BugDetailPage />} />
+        <Route path="test-cases" element={<TestCasesPage />} />
+        <Route path="test-cases/project/:projectId" element={<TestCasesProjectPage />} />
+        <Route path="test-cases/:id" element={<TestCaseDetailPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
         <Route path="admin/logs" element={<AdminLogsPage />} />

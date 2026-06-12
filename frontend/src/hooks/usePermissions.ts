@@ -29,6 +29,10 @@ const DEFAULT: UserPermissions = {
   can_create_sprints: false,
   can_edit_sprints: false,
   can_delete_sprints: false,
+  can_view_test_cases: false,
+  can_create_test_cases: false,
+  can_edit_test_cases: false,
+  can_delete_test_cases: false,
 };
 
 export function usePermissions(): UserPermissions {

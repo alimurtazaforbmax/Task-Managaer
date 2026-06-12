@@ -97,6 +97,10 @@ export interface UserPermissions extends Record<string, boolean> {
   can_create_sprints: boolean;
   can_edit_sprints: boolean;
   can_delete_sprints: boolean;
+  can_view_test_cases: boolean;
+  can_create_test_cases: boolean;
+  can_edit_test_cases: boolean;
+  can_delete_test_cases: boolean;
 }
 
 export interface Department {
@@ -160,7 +164,33 @@ export interface Project {
   bug_count?: number;
   feature_count?: number;
   sprint_count?: number;
+  test_case_count?: number;
   members?: ProjectMember[];
+}
+
+export interface TestCase {
+  id: number;
+  project: number;
+  project_name?: string;
+  feature?: number | null;
+  feature_title?: string;
+  title: string;
+  description?: string;
+  preconditions?: string;
+  steps?: string;
+  expected_result?: string;
+  status: string;
+  priority: string;
+  test_type?: string;
+  assignee?: number | null;
+  assignee_detail?: User;
+  created_by?: number;
+  created_by_detail?: User;
+  linked_task_count?: number;
+  linked_bug_count?: number;
+  linked_ticket_count?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Feature {

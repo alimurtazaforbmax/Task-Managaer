@@ -163,6 +163,86 @@ class Sprint(models.Model):
         return self.name
 
 
+class TestCaseStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    READY = "ready", "Ready"
+    IN_PROGRESS = "in_progress", "In Progress"
+    PASSED = "passed", "Passed"
+    FAILED = "failed", "Failed"
+    BLOCKED = "blocked", "Blocked"
+    DEPRECATED = "deprecated", "Deprecated"
+
+
+class TestCasePriority(models.TextChoices):
+    LOW = "low", "Low"
+    MEDIUM = "medium", "Medium"
+    HIGH = "high", "High"
+    CRITICAL = "critical", "Critical"
+
+
+class TestCaseType(models.TextChoices):
+    FUNCTIONAL = "functional", "Functional"
+    REGRESSION = "regression", "Regression"
+    SMOKE = "smoke", "Smoke"
+    INTEGRATION = "integration", "Integration"
+    UAT = "uat", "UAT"
+    OTHER = "other", "Other"
+
+
+class TestCase(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="test_cases"
+    )
+    feature = models.ForeignKey(
+        Feature,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="test_cases",
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    preconditions = models.TextField(blank=True)
+    steps = models.TextField(blank=True)
+    expected_result = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=32,
+        choices=TestCaseStatus.choices,
+        default=TestCaseStatus.DRAFT,
+    )
+    priority = models.CharField(
+        max_length=16,
+        choices=TestCasePriority.choices,
+        default=TestCasePriority.MEDIUM,
+    )
+    test_type = models.CharField(
+        max_length=32,
+        choices=TestCaseType.choices,
+        default=TestCaseType.FUNCTIONAL,
+    )
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assigned_test_cases",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_test_cases",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return self.title
+
+
 class ProjectDocument(models.Model):
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="documents"

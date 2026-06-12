@@ -46,6 +46,13 @@ class Bug(models.Model):
         blank=True,
         related_name="related_bugs",
     )
+    test_case = models.ForeignKey(
+        "projects.TestCase",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="linked_bugs",
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     steps_to_reproduce = models.TextField(blank=True)

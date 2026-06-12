@@ -10,6 +10,7 @@ from apps.projects.models import (
     ProjectMember,
     ProjectMemberRole,
     Sprint,
+    TestCase,
 )
 
 
@@ -41,6 +42,9 @@ class ProjectSerializer(serializers.ModelSerializer):
     bug_count = serializers.IntegerField(source="bugs.count", read_only=True)
     feature_count = serializers.IntegerField(source="features.count", read_only=True)
     sprint_count = serializers.IntegerField(source="sprints.count", read_only=True)
+    test_case_count = serializers.IntegerField(
+        source="test_cases.count", read_only=True
+    )
 
     class Meta:
         model = Project
@@ -58,6 +62,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "bug_count",
             "feature_count",
             "sprint_count",
+            "test_case_count",
             "created_at",
             "updated_at",
         )
@@ -71,6 +76,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "bug_count",
             "feature_count",
             "sprint_count",
+            "test_case_count",
         )
 
 
@@ -342,3 +348,108 @@ class SprintUpdateSerializer(serializers.ModelSerializer):
         if start and end and end < start:
             raise serializers.ValidationError("End date must be on or after start date.")
         return attrs
+
+
+class TestCaseListSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    feature_title = serializers.CharField(source="feature.title", read_only=True)
+    assignee_detail = UserSerializer(source="assignee", read_only=True)
+
+    class Meta:
+        model = TestCase
+        fields = (
+            "id",
+            "project",
+            "project_name",
+            "feature",
+            "feature_title",
+            "title",
+            "status",
+            "priority",
+            "test_type",
+            "assignee",
+            "assignee_detail",
+            "updated_at",
+        )
+
+
+class TestCaseSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    feature_title = serializers.CharField(source="feature.title", read_only=True)
+    assignee_detail = UserSerializer(source="assignee", read_only=True)
+    created_by_detail = UserSerializer(source="created_by", read_only=True)
+    linked_task_count = serializers.IntegerField(
+        source="linked_tasks.count", read_only=True
+    )
+    linked_bug_count = serializers.IntegerField(
+        source="linked_bugs.count", read_only=True
+    )
+    linked_ticket_count = serializers.IntegerField(
+        source="linked_tickets.count", read_only=True
+    )
+
+    class Meta:
+        model = TestCase
+        fields = (
+            "id",
+            "project",
+            "project_name",
+            "feature",
+            "feature_title",
+            "title",
+            "description",
+            "preconditions",
+            "steps",
+            "expected_result",
+            "status",
+            "priority",
+            "test_type",
+            "assignee",
+            "assignee_detail",
+            "created_by",
+            "created_by_detail",
+            "linked_task_count",
+            "linked_bug_count",
+            "linked_ticket_count",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "created_by",
+            "created_by_detail",
+            "project_name",
+            "feature_title",
+            "assignee_detail",
+            "linked_task_count",
+            "linked_bug_count",
+            "linked_ticket_count",
+            "created_at",
+            "updated_at",
+        )
+
+
+class TestCaseUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TestCase
+        fields = (
+            "title",
+            "description",
+            "preconditions",
+            "steps",
+            "expected_result",
+            "status",
+            "priority",
+            "test_type",
+            "feature",
+            "assignee",
+        )
+
+
+class SpawnFromTestCaseSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    request_type = serializers.ChoiceField(
+        choices=["task", "bug", "issue", "other"],
+        required=False,
+    )

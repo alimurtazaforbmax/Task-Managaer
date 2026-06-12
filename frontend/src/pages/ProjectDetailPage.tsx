@@ -33,7 +33,8 @@ import {
 import { uploadWorkItemAttachments } from "../utils/uploadWorkItemAttachments";
 import FeatureCard from "../components/FeatureCard";
 import SprintCard from "../components/SprintCard";
-import type { ApiResponse, Bug, Feature, Project, Sprint, Task } from "../types";
+import TestCaseCard from "../components/TestCaseCard";
+import type { ApiResponse, Bug, Feature, Project, Sprint, Task, TestCase } from "../types";
 
 export default function ProjectDetailPage() {
   const { id } = useParams();
@@ -133,6 +134,20 @@ export default function ProjectDetailPage() {
       const d = unwrap(res);
       return Array.isArray(d) ? d : d.results;
     },
+  });
+
+  const canViewTestCases = isAdmin || permissions.can_view_test_cases;
+
+  const { data: testCases } = useQuery({
+    queryKey: ["test-cases", { project: id }],
+    queryFn: async () => {
+      const res = await api.get<ApiResponse<{ results: TestCase[] } | TestCase[]>>(
+        `/test-cases/?project=${id}`
+      );
+      const d = unwrap(res);
+      return Array.isArray(d) ? d : d.results;
+    },
+    enabled: Boolean(id) && canViewTestCases,
   });
 
   const updateProject = useMutation({
@@ -267,7 +282,7 @@ export default function ProjectDetailPage() {
             {project.description || "No description yet."}
           </p>
 
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <StatChip
               label="Features"
               value={project.feature_count ?? features?.length ?? 0}
@@ -278,6 +293,13 @@ export default function ProjectDetailPage() {
               value={project.sprint_count ?? sprints?.length ?? 0}
               tone="tasks"
             />
+            {canViewTestCases && (
+              <StatChip
+                label="Test cases"
+                value={project.test_case_count ?? testCases?.length ?? 0}
+                tone="tasks"
+              />
+            )}
             <StatChip label="Tasks" value={project.task_count ?? tasks?.length ?? 0} tone="tasks" />
             <StatChip label="Bugs" value={project.bug_count ?? bugs?.length ?? 0} tone="bugs" />
             <StatChip
@@ -434,6 +456,41 @@ export default function ProjectDetailPage() {
           )}
         </div>
       </section>
+
+      {canViewTestCases && (
+        <section className="mt-10">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-lg text-slate-900">Test cases</h2>
+            <Link
+              to={`/test-cases/project/${id}`}
+              className="text-sm text-brand-600 hover:underline font-medium"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {testCases?.slice(0, 4).map((tc) => (
+              <TestCaseCard key={tc.id} testCase={tc} />
+            ))}
+            {!testCases?.length && (
+              <p className="text-sm text-slate-400 col-span-full">
+                No test cases for this project.
+                {permissions.can_create_test_cases && (
+                  <>
+                    {" "}
+                    <Link
+                      to={`/test-cases/project/${id}`}
+                      className="text-brand-600 font-medium hover:underline"
+                    >
+                      Create one
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="mt-10">
         <div className="flex items-center justify-between">

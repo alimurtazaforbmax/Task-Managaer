@@ -85,6 +85,13 @@ class Ticket(models.Model):
         blank=True,
         related_name="source_ticket",
     )
+    source_test_case = models.ForeignKey(
+        "projects.TestCase",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="linked_tickets",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

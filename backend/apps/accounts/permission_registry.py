@@ -163,6 +163,30 @@ PERMISSION_REGISTRY: list[dict[str, str]] = [
         "category": "Planning",
         "description": "Delete sprints created by others.",
     },
+    {
+        "codename": "can_view_test_cases",
+        "name": "View test cases",
+        "category": "Test cases",
+        "description": "Browse and open test cases for your projects.",
+    },
+    {
+        "codename": "can_create_test_cases",
+        "name": "Create test cases",
+        "category": "Test cases",
+        "description": "Author new test cases within projects.",
+    },
+    {
+        "codename": "can_edit_test_cases",
+        "name": "Edit test cases",
+        "category": "Test cases",
+        "description": "Update test case details and execution status.",
+    },
+    {
+        "codename": "can_delete_test_cases",
+        "name": "Delete test cases",
+        "category": "Test cases",
+        "description": "Remove test cases from a project.",
+    },
 ]
 
 SYSTEM_ROLES: list[dict] = [
@@ -199,6 +223,7 @@ SYSTEM_ROLES: list[dict] = [
             "can_view_user_details",
             "can_generate_user_reports",
             "can_generate_project_reports",
+            "can_view_test_cases",
         ],
     },
     {
@@ -240,7 +265,14 @@ SYSTEM_ROLES: list[dict] = [
         "description": "Tests software and reports bugs.",
         "is_system": True,
         "is_admin": False,
-        "permissions": ["can_create_bugs", "can_create_tickets"],
+        "permissions": [
+            "can_create_bugs",
+            "can_create_tickets",
+            "can_view_test_cases",
+            "can_create_test_cases",
+            "can_edit_test_cases",
+            "can_delete_test_cases",
+        ],
     },
     {
         "name": "Viewer",
@@ -261,6 +293,8 @@ DEPARTMENT_OVERLAY_CODENAMES = (
     "can_create_sprints",
     "can_edit_features",
     "can_edit_sprints",
+    "can_create_test_cases",
+    "can_edit_test_cases",
 )
 
 

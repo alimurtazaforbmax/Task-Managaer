@@ -19,6 +19,35 @@ const baseNav = [
   { to: "/tickets", label: "Tickets" },
 ];
 
+function buildNav(
+  permissions: ReturnType<typeof usePermissions>,
+  userRole?: string
+) {
+  return [
+    ...baseNav,
+    ...(permissions.can_view_test_cases || userRole === "admin"
+      ? [{ to: "/test-cases", label: "Test cases" }]
+      : []),
+    ...(userRole === "admin" || permissions.can_manage_roles
+      ? [{ to: "/roles", label: "Roles" }]
+      : []),
+    ...(userRole === "admin" || permissions.can_manage_departments
+      ? [{ to: "/departments", label: "Departments" }]
+      : []),
+    ...(userRole === "admin" || permissions.can_view_team
+      ? [{ to: "/team", label: "Team" }]
+      : []),
+    ...(userRole === "admin" ||
+    permissions.can_view_users ||
+    permissions.can_manage_users
+      ? [{ to: "/users", label: "Users" }]
+      : []),
+    ...(userRole === "admin" || permissions.can_view_audit_logs
+      ? [{ to: "/admin/logs", label: "Logs" }]
+      : []),
+  ];
+}
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const permissions = usePermissions();
@@ -41,26 +70,7 @@ export default function Layout() {
           )}
         </div>
         <nav className="flex-1 p-4 space-y-1 hidden md:block">
-          {[
-            ...baseNav,
-            ...(user?.role === "admin" || permissions.can_manage_roles
-              ? [{ to: "/roles", label: "Roles" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_manage_departments
-              ? [{ to: "/departments", label: "Departments" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_view_team
-              ? [{ to: "/team", label: "Team" }]
-              : []),
-            ...(user?.role === "admin" ||
-            permissions.can_view_users ||
-            permissions.can_manage_users
-              ? [{ to: "/users", label: "Users" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_view_audit_logs
-              ? [{ to: "/admin/logs", label: "Logs" }]
-              : []),
-          ].map((item) => (
+          {buildNav(permissions, user?.role).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -81,26 +91,7 @@ export default function Layout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <nav className="md:hidden flex gap-1 overflow-x-auto px-3 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
-          {[
-            ...baseNav,
-            ...(user?.role === "admin" || permissions.can_manage_roles
-              ? [{ to: "/roles", label: "Roles" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_manage_departments
-              ? [{ to: "/departments", label: "Depts" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_view_team
-              ? [{ to: "/team", label: "Team" }]
-              : []),
-            ...(user?.role === "admin" ||
-            permissions.can_view_users ||
-            permissions.can_manage_users
-              ? [{ to: "/users", label: "Users" }]
-              : []),
-            ...(user?.role === "admin" || permissions.can_view_audit_logs
-              ? [{ to: "/admin/logs", label: "Logs" }]
-              : []),
-          ].map((item) => (
+          {buildNav(permissions, user?.role).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

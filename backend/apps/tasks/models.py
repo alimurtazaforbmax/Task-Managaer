@@ -46,6 +46,13 @@ class Task(models.Model):
         blank=True,
         related_name="tasks",
     )
+    test_case = models.ForeignKey(
+        "projects.TestCase",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="linked_tasks",
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     status = models.CharField(
